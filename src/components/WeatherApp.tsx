@@ -239,31 +239,35 @@ export function WeatherApp() {
                 </section>
 
                 {/* AQI card with color bar */}
-                {air.data && (
-                  <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-                    <div className="mb-2 flex items-center justify-between text-sm text-white/70">
-                      <span className="text-base font-semibold text-white">
-                        {air.data.list[0].main.aqi * 20} · {T.aqi(air.data.list[0].main.aqi)}
-                      </span>
-                      <span className="text-xs uppercase tracking-widest">{T.t("aqi")}</span>
-                    </div>
-                    <div
-                      className="relative h-1.5 rounded-full"
-                      style={{
-                        background:
-                          "linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444, #a855f7, #7f1d1d)",
-                      }}
-                    >
+                {air.data && (() => {
+                  const aqi = air.data.list[0].main.aqi;
+                  const pct = ((aqi - 1) / 4) * 100;
+                  return (
+                    <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
+                      <div className="mb-2 flex items-center justify-between text-sm text-white/70">
+                        <span className="text-base font-semibold text-white">
+                          {T.t("aqi")} · {T.aqi(aqi)}
+                        </span>
+                        <span className="text-xs uppercase tracking-widest">{aqi}/5</span>
+                      </div>
                       <div
-                        className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-white shadow"
-                        style={{ left: `${Math.min(100, (air.data.list[0].main.aqi / 5) * 100)}%`, transform: "translate(-50%, -50%)" }}
-                      />
+                        className="relative h-1.5 rounded-full"
+                        style={{
+                          background:
+                            "linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444, #a855f7)",
+                        }}
+                      >
+                        <div
+                          className="absolute top-1/2 h-3 w-3 rounded-full bg-white shadow"
+                          style={{ left: `${pct}%`, transform: "translate(-50%, -50%)" }}
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-white/70">
+                        PM2.5 {air.data.list[0].components.pm2_5.toFixed(0)} · PM10 {air.data.list[0].components.pm10.toFixed(0)} · O₃ {air.data.list[0].components.o3.toFixed(0)}
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs text-white/70">
-                      PM2.5 {air.data.list[0].components.pm2_5.toFixed(0)} · PM10 {air.data.list[0].components.pm10.toFixed(0)} · O₃ {air.data.list[0].components.o3.toFixed(0)}
-                    </p>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Hourly */}
                 <section className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
