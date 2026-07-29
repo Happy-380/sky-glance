@@ -382,13 +382,13 @@ function Detail({ icon, label, value, sub }: {
   );
 }
 
-function LocationCard({ loc, active, units, onSelect, onRemove }: {
-  loc: SavedLocation; active: boolean; units: "metric" | "imperial";
+function LocationCard({ loc, active, units, owmLang, onSelect, onRemove }: {
+  loc: SavedLocation; active: boolean; units: "metric" | "imperial"; owmLang: string;
   onSelect: () => void; onRemove?: () => void;
 }) {
   const q = useQuery({
-    queryKey: ["current", loc.lat, loc.lon, units],
-    queryFn: () => getCurrent(loc.lat, loc.lon, units),
+    queryKey: ["current", loc.lat, loc.lon, units, owmLang],
+    queryFn: () => getCurrent(loc.lat, loc.lon, units, owmLang),
     refetchOnWindowFocus: false,
   });
   return (
