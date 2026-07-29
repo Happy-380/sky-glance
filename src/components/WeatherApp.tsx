@@ -169,7 +169,7 @@ export function WeatherApp() {
           </button>
         </header>
 
-        <div className="grid flex-1 gap-6 lg:grid-cols-[280px_1fr]">
+        <div className="grid flex-1 min-w-0 gap-6 lg:grid-cols-[280px_1fr]">
           {/* Sidebar */}
           <aside className={`${listOpen ? "block" : "hidden"} lg:block`}>
             <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-widest text-white/60">
