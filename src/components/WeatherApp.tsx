@@ -28,10 +28,11 @@ const DEFAULT: SavedLocation = {
 export function WeatherApp() {
   const lang = useMemo(() => detectLang(), []);
   const T = useMemo(() => makeT(lang), [lang]);
+  const owmLang = lang === "zh" ? "zh_cn" : "en";
 
   const locations = useLocations();
   const [active, setActive] = useState<SavedLocation>(DEFAULT);
-  const [units, setUnits] = useState<"metric" | "imperial">(lang === "zh" ? "metric" : "metric");
+  const [units, setUnits] = useState<"metric" | "imperial">("metric");
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -44,13 +45,13 @@ export function WeatherApp() {
   const activeList = locations.length ? locations : [DEFAULT];
 
   const current = useQuery({
-    queryKey: ["current", active.lat, active.lon, units],
-    queryFn: () => getCurrent(active.lat, active.lon, units),
+    queryKey: ["current", active.lat, active.lon, units, owmLang],
+    queryFn: () => getCurrent(active.lat, active.lon, units, owmLang),
     refetchOnWindowFocus: false,
   });
   const forecast = useQuery({
-    queryKey: ["forecast", active.lat, active.lon, units],
-    queryFn: () => getForecast(active.lat, active.lon, units),
+    queryKey: ["forecast", active.lat, active.lon, units, owmLang],
+    queryFn: () => getForecast(active.lat, active.lon, units, owmLang),
     refetchOnWindowFocus: false,
   });
   const air = useQuery({
@@ -181,6 +182,7 @@ export function WeatherApp() {
                   loc={loc}
                   active={loc.id === active.id}
                   units={units}
+                  owmLang={owmLang}
                   onSelect={() => { setActive(loc); setListOpen(false); }}
                   onRemove={locations.length > 0 ? () => removeLocation(loc.id) : undefined}
                 />
@@ -208,23 +210,26 @@ export function WeatherApp() {
             {current.data && (
               <>
                 {/* Hero — Apple Weather style */}
-                <section className="pt-6 pb-8 text-center md:pt-10">
+                <section className="pt-4 pb-6 text-center md:pt-10 md:pb-8">
                   <div className="flex items-center justify-center gap-1 text-sm text-white/85">
                     {locations.length === 0 && <MapPin className="h-3.5 w-3.5" />}
-                    <span>{locations.length === 0 ? T.t("myLocation") : (lang === "zh" ? "" : "")}</span>
+                    <span>{locations.length === 0 ? T.t("myLocation") : ""}</span>
                   </div>
                   <h1 className="mt-1 text-3xl font-medium tracking-tight md:text-4xl">
                     {active.name}
                   </h1>
                   <div className="mt-1 flex items-start justify-center">
-                    <span className="text-[110px] font-thin leading-none tracking-tighter md:text-[140px]">
+                    <span className="text-[88px] font-thin leading-none tracking-tighter sm:text-[110px] md:text-[140px]">
                       {Math.round(current.data.main.temp)}
                     </span>
-                    <span className="mt-4 text-4xl font-thin text-white/85 md:text-5xl">
+                    <span className="mt-3 text-3xl font-thin text-white/85 sm:mt-4 sm:text-4xl md:text-5xl">
                       {tempUnit}
                     </span>
                   </div>
-                  <div className="mt-1 flex items-center justify-center gap-4 text-base text-white/90 md:text-lg">
+                  <p className="mt-1 text-base capitalize text-white/90">
+                    {current.data.weather[0].description}
+                  </p>
+                  <div className="mt-1 flex items-center justify-center gap-4 text-sm text-white/90 md:text-base">
                     <span>
                       <span className="text-white/70">{T.t("high")}</span> {Math.round(current.data.main.temp_max)}°
                     </span>
@@ -232,37 +237,38 @@ export function WeatherApp() {
                       <span className="text-white/70">{T.t("low")}</span> {Math.round(current.data.main.temp_min)}°
                     </span>
                   </div>
-                  <p className="mt-1 text-base capitalize text-white/90">
-                    {current.data.weather[0].description}
-                  </p>
                 </section>
 
                 {/* AQI card with color bar */}
-                {air.data && (
-                  <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-                    <div className="mb-2 flex items-center justify-between text-sm text-white/70">
-                      <span className="text-base font-semibold text-white">
-                        {air.data.list[0].main.aqi * 20} · {T.aqi(air.data.list[0].main.aqi)}
-                      </span>
-                      <span className="text-xs uppercase tracking-widest">{T.t("aqi")}</span>
-                    </div>
-                    <div
-                      className="relative h-1.5 rounded-full"
-                      style={{
-                        background:
-                          "linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444, #a855f7, #7f1d1d)",
-                      }}
-                    >
+                {air.data && (() => {
+                  const aqi = air.data.list[0].main.aqi;
+                  const pct = ((aqi - 1) / 4) * 100;
+                  return (
+                    <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
+                      <div className="mb-2 flex items-center justify-between text-sm text-white/70">
+                        <span className="text-base font-semibold text-white">
+                          {T.t("aqi")} · {T.aqi(aqi)}
+                        </span>
+                        <span className="text-xs uppercase tracking-widest">{aqi}/5</span>
+                      </div>
                       <div
-                        className="absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-white shadow"
-                        style={{ left: `${Math.min(100, (air.data.list[0].main.aqi / 5) * 100)}%`, transform: "translate(-50%, -50%)" }}
-                      />
+                        className="relative h-1.5 rounded-full"
+                        style={{
+                          background:
+                            "linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444, #a855f7)",
+                        }}
+                      >
+                        <div
+                          className="absolute top-1/2 h-3 w-3 rounded-full bg-white shadow"
+                          style={{ left: `${pct}%`, transform: "translate(-50%, -50%)" }}
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-white/70">
+                        PM2.5 {air.data.list[0].components.pm2_5.toFixed(0)} · PM10 {air.data.list[0].components.pm10.toFixed(0)} · O₃ {air.data.list[0].components.o3.toFixed(0)}
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs text-white/70">
-                      PM2.5 {air.data.list[0].components.pm2_5.toFixed(0)} · PM10 {air.data.list[0].components.pm10.toFixed(0)} · O₃ {air.data.list[0].components.o3.toFixed(0)}
-                    </p>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Hourly */}
                 <section className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
@@ -327,19 +333,19 @@ export function WeatherApp() {
                   </div>
                 </section>
 
-                {/* Details grid */}
+                {/* Details grid — Apple square tiles */}
                 <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
                   <Detail icon={<Thermometer className="h-4 w-4" />} label={T.t("feelsLike")}
                     value={`${Math.round(current.data.main.feels_like)}${tempUnit}`} />
                   <Detail icon={<Wind className="h-4 w-4" />} label={T.t("wind")}
-                    value={`${current.data.wind.speed.toFixed(1)} ${windUnit}`}
-                    sub={T.compass(degToCompass(current.data.wind.deg))} />
+                    value={`${current.data.wind.speed.toFixed(1)}`}
+                    sub={`${windUnit} · ${T.compass(degToCompass(current.data.wind.deg))}`} />
                   <Detail icon={<Droplets className="h-4 w-4" />} label={T.t("humidity")}
                     value={`${current.data.main.humidity}%`} />
                   <Detail icon={<Gauge className="h-4 w-4" />} label={T.t("pressure")}
-                    value={`${current.data.main.pressure} hPa`} />
+                    value={`${current.data.main.pressure}`} sub="hPa" />
                   <Detail icon={<Eye className="h-4 w-4" />} label={T.t("visibility")}
-                    value={`${(current.data.visibility / 1000).toFixed(1)} km`} />
+                    value={`${(current.data.visibility / 1000).toFixed(1)}`} sub="km" />
                   <Detail icon={<Sunrise className="h-4 w-4" />} label={T.t("sunrise")}
                     value={formatTimeL(current.data.sys.sunrise, tz)} />
                   <Detail icon={<Sunset className="h-4 w-4" />} label={T.t("sunset")}
@@ -364,23 +370,25 @@ function Detail({ icon, label, value, sub }: {
   icon: React.ReactNode; label: string; value: string; sub?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-      <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-white/70">
-        {icon}<span>{label}</span>
+    <div className="flex aspect-square flex-col justify-between rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-white/70">
+        {icon}<span className="truncate">{label}</span>
       </div>
-      <div className="text-2xl font-light">{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-white/70">{sub}</div>}
+      <div className="min-w-0">
+        <div className="truncate text-2xl font-light md:text-3xl">{value}</div>
+        {sub && <div className="mt-0.5 truncate text-xs text-white/70">{sub}</div>}
+      </div>
     </div>
   );
 }
 
-function LocationCard({ loc, active, units, onSelect, onRemove }: {
-  loc: SavedLocation; active: boolean; units: "metric" | "imperial";
+function LocationCard({ loc, active, units, owmLang, onSelect, onRemove }: {
+  loc: SavedLocation; active: boolean; units: "metric" | "imperial"; owmLang: string;
   onSelect: () => void; onRemove?: () => void;
 }) {
   const q = useQuery({
-    queryKey: ["current", loc.lat, loc.lon, units],
-    queryFn: () => getCurrent(loc.lat, loc.lon, units),
+    queryKey: ["current", loc.lat, loc.lon, units, owmLang],
+    queryFn: () => getCurrent(loc.lat, loc.lon, units, owmLang),
     refetchOnWindowFocus: false,
   });
   return (
