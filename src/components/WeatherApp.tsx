@@ -113,8 +113,8 @@ export function WeatherApp() {
   const rangeMax = daily.length ? Math.max(...daily.map((d) => d.max)) : 1;
 
   return (
-    <div className="min-h-screen text-white" style={{ background: bg }}>
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 pb-24 pt-4 md:px-8 md:pt-8 lg:pb-8">
+    <div className="min-h-screen w-full overflow-x-hidden text-white" style={{ background: bg }}>
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl min-w-0 flex-col px-4 pb-24 pt-4 md:px-8 md:pt-8 lg:pb-8">
         {/* Top bar */}
         <header className="mb-4 flex items-center gap-2">
           <div className="relative flex-1">
