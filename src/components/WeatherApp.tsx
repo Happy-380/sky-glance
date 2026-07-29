@@ -182,6 +182,7 @@ export function WeatherApp() {
                   loc={loc}
                   active={loc.id === active.id}
                   units={units}
+                  owmLang={owmLang}
                   onSelect={() => { setActive(loc); setListOpen(false); }}
                   onRemove={locations.length > 0 ? () => removeLocation(loc.id) : undefined}
                 />
