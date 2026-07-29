@@ -209,23 +209,26 @@ export function WeatherApp() {
             {current.data && (
               <>
                 {/* Hero — Apple Weather style */}
-                <section className="pt-6 pb-8 text-center md:pt-10">
+                <section className="pt-4 pb-6 text-center md:pt-10 md:pb-8">
                   <div className="flex items-center justify-center gap-1 text-sm text-white/85">
                     {locations.length === 0 && <MapPin className="h-3.5 w-3.5" />}
-                    <span>{locations.length === 0 ? T.t("myLocation") : (lang === "zh" ? "" : "")}</span>
+                    <span>{locations.length === 0 ? T.t("myLocation") : ""}</span>
                   </div>
                   <h1 className="mt-1 text-3xl font-medium tracking-tight md:text-4xl">
                     {active.name}
                   </h1>
                   <div className="mt-1 flex items-start justify-center">
-                    <span className="text-[110px] font-thin leading-none tracking-tighter md:text-[140px]">
+                    <span className="text-[88px] font-thin leading-none tracking-tighter sm:text-[110px] md:text-[140px]">
                       {Math.round(current.data.main.temp)}
                     </span>
-                    <span className="mt-4 text-4xl font-thin text-white/85 md:text-5xl">
+                    <span className="mt-3 text-3xl font-thin text-white/85 sm:mt-4 sm:text-4xl md:text-5xl">
                       {tempUnit}
                     </span>
                   </div>
-                  <div className="mt-1 flex items-center justify-center gap-4 text-base text-white/90 md:text-lg">
+                  <p className="mt-1 text-base capitalize text-white/90">
+                    {current.data.weather[0].description}
+                  </p>
+                  <div className="mt-1 flex items-center justify-center gap-4 text-sm text-white/90 md:text-base">
                     <span>
                       <span className="text-white/70">{T.t("high")}</span> {Math.round(current.data.main.temp_max)}°
                     </span>
@@ -233,9 +236,6 @@ export function WeatherApp() {
                       <span className="text-white/70">{T.t("low")}</span> {Math.round(current.data.main.temp_min)}°
                     </span>
                   </div>
-                  <p className="mt-1 text-base capitalize text-white/90">
-                    {current.data.weather[0].description}
-                  </p>
                 </section>
 
                 {/* AQI card with color bar */}
