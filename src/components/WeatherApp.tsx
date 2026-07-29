@@ -113,8 +113,8 @@ export function WeatherApp() {
   const rangeMax = daily.length ? Math.max(...daily.map((d) => d.max)) : 1;
 
   return (
-    <div className="min-h-screen text-white" style={{ background: bg }}>
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 pb-24 pt-4 md:px-8 md:pt-8 lg:pb-8">
+    <div className="min-h-screen w-full overflow-x-hidden text-white" style={{ background: bg }}>
+      <div className="mx-auto flex min-h-screen w-full max-w-5xl min-w-0 flex-col px-4 pb-24 pt-4 md:px-8 md:pt-8 lg:pb-8">
         {/* Top bar */}
         <header className="mb-4 flex items-center gap-2">
           <div className="relative flex-1">
@@ -169,7 +169,7 @@ export function WeatherApp() {
           </button>
         </header>
 
-        <div className="grid flex-1 gap-6 lg:grid-cols-[280px_1fr]">
+        <div className="grid flex-1 min-w-0 gap-6 lg:grid-cols-[280px_1fr]">
           {/* Sidebar */}
           <aside className={`${listOpen ? "block" : "hidden"} lg:block`}>
             <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-widest text-white/60">
@@ -196,7 +196,7 @@ export function WeatherApp() {
           </aside>
 
           {/* Main */}
-          <main className="flex flex-col gap-4">
+          <main className="flex min-w-0 flex-col gap-4">
             {current.isLoading && (
               <div className="flex items-center justify-center py-24">
                 <Loader2 className="h-8 w-8 animate-spin text-white/70" />
@@ -219,10 +219,10 @@ export function WeatherApp() {
                     {active.name}
                   </h1>
                   <div className="mt-1 flex items-start justify-center">
-                    <span className="text-[88px] font-thin leading-none tracking-tighter sm:text-[110px] md:text-[140px]">
+                    <span className="font-thin leading-none tracking-tighter" style={{ fontSize: "clamp(72px, 22vw, 140px)" }}>
                       {Math.round(current.data.main.temp)}
                     </span>
-                    <span className="mt-3 text-3xl font-thin text-white/85 sm:mt-4 sm:text-4xl md:text-5xl">
+                    <span className="mt-3 font-thin text-white/85 sm:mt-4" style={{ fontSize: "clamp(28px, 8vw, 48px)" }}>
                       {tempUnit}
                     </span>
                   </div>
