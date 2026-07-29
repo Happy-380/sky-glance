@@ -68,15 +68,15 @@ export function reverseGeocode(lat: number, lon: number) {
   );
 }
 
-export function getCurrent(lat: number, lon: number, units: "metric" | "imperial" = "metric") {
+export function getCurrent(lat: number, lon: number, units: "metric" | "imperial" = "metric", lang = "en") {
   return j<CurrentWeather>(
-    `${BASE}/data/2.5/weather?lat=${lat}&lon=${lon}&units=${units}&appid=${OWM_KEY}`,
+    `${BASE}/data/2.5/weather?lat=${lat}&lon=${lon}&units=${units}&lang=${lang}&appid=${OWM_KEY}`,
   );
 }
 
-export function getForecast(lat: number, lon: number, units: "metric" | "imperial" = "metric") {
+export function getForecast(lat: number, lon: number, units: "metric" | "imperial" = "metric", lang = "en") {
   return j<ForecastResponse>(
-    `${BASE}/data/2.5/forecast?lat=${lat}&lon=${lon}&units=${units}&appid=${OWM_KEY}`,
+    `${BASE}/data/2.5/forecast?lat=${lat}&lon=${lon}&units=${units}&lang=${lang}&appid=${OWM_KEY}`,
   );
 }
 
