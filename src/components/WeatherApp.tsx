@@ -332,19 +332,19 @@ export function WeatherApp() {
                   </div>
                 </section>
 
-                {/* Details grid */}
+                {/* Details grid — Apple square tiles */}
                 <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
                   <Detail icon={<Thermometer className="h-4 w-4" />} label={T.t("feelsLike")}
                     value={`${Math.round(current.data.main.feels_like)}${tempUnit}`} />
                   <Detail icon={<Wind className="h-4 w-4" />} label={T.t("wind")}
-                    value={`${current.data.wind.speed.toFixed(1)} ${windUnit}`}
-                    sub={T.compass(degToCompass(current.data.wind.deg))} />
+                    value={`${current.data.wind.speed.toFixed(1)}`}
+                    sub={`${windUnit} · ${T.compass(degToCompass(current.data.wind.deg))}`} />
                   <Detail icon={<Droplets className="h-4 w-4" />} label={T.t("humidity")}
                     value={`${current.data.main.humidity}%`} />
                   <Detail icon={<Gauge className="h-4 w-4" />} label={T.t("pressure")}
-                    value={`${current.data.main.pressure} hPa`} />
+                    value={`${current.data.main.pressure}`} sub="hPa" />
                   <Detail icon={<Eye className="h-4 w-4" />} label={T.t("visibility")}
-                    value={`${(current.data.visibility / 1000).toFixed(1)} km`} />
+                    value={`${(current.data.visibility / 1000).toFixed(1)}`} sub="km" />
                   <Detail icon={<Sunrise className="h-4 w-4" />} label={T.t("sunrise")}
                     value={formatTimeL(current.data.sys.sunrise, tz)} />
                   <Detail icon={<Sunset className="h-4 w-4" />} label={T.t("sunset")}
@@ -369,12 +369,14 @@ function Detail({ icon, label, value, sub }: {
   icon: React.ReactNode; label: string; value: string; sub?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-      <div className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-white/70">
-        {icon}<span>{label}</span>
+    <div className="flex aspect-square flex-col justify-between rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
+      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-widest text-white/70">
+        {icon}<span className="truncate">{label}</span>
       </div>
-      <div className="text-2xl font-light">{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-white/70">{sub}</div>}
+      <div className="min-w-0">
+        <div className="truncate text-2xl font-light md:text-3xl">{value}</div>
+        {sub && <div className="mt-0.5 truncate text-xs text-white/70">{sub}</div>}
+      </div>
     </div>
   );
 }
