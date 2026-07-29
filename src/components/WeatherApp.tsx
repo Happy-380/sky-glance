@@ -196,7 +196,7 @@ export function WeatherApp() {
           </aside>
 
           {/* Main */}
-          <main className="flex flex-col gap-4">
+          <main className="flex min-w-0 flex-col gap-4">
             {current.isLoading && (
               <div className="flex items-center justify-center py-24">
                 <Loader2 className="h-8 w-8 animate-spin text-white/70" />
