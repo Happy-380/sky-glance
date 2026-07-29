@@ -219,10 +219,10 @@ export function WeatherApp() {
                     {active.name}
                   </h1>
                   <div className="mt-1 flex items-start justify-center">
-                    <span className="text-[88px] font-thin leading-none tracking-tighter sm:text-[110px] md:text-[140px]">
+                    <span className="font-thin leading-none tracking-tighter" style={{ fontSize: "clamp(72px, 22vw, 140px)" }}>
                       {Math.round(current.data.main.temp)}
                     </span>
-                    <span className="mt-3 text-3xl font-thin text-white/85 sm:mt-4 sm:text-4xl md:text-5xl">
+                    <span className="mt-3 font-thin text-white/85 sm:mt-4" style={{ fontSize: "clamp(28px, 8vw, 48px)" }}>
                       {tempUnit}
                     </span>
                   </div>
