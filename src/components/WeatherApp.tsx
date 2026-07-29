@@ -28,10 +28,11 @@ const DEFAULT: SavedLocation = {
 export function WeatherApp() {
   const lang = useMemo(() => detectLang(), []);
   const T = useMemo(() => makeT(lang), [lang]);
+  const owmLang = lang === "zh" ? "zh_cn" : "en";
 
   const locations = useLocations();
   const [active, setActive] = useState<SavedLocation>(DEFAULT);
-  const [units, setUnits] = useState<"metric" | "imperial">(lang === "zh" ? "metric" : "metric");
+  const [units, setUnits] = useState<"metric" | "imperial">("metric");
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [listOpen, setListOpen] = useState(false);
@@ -44,13 +45,13 @@ export function WeatherApp() {
   const activeList = locations.length ? locations : [DEFAULT];
 
   const current = useQuery({
-    queryKey: ["current", active.lat, active.lon, units],
-    queryFn: () => getCurrent(active.lat, active.lon, units),
+    queryKey: ["current", active.lat, active.lon, units, owmLang],
+    queryFn: () => getCurrent(active.lat, active.lon, units, owmLang),
     refetchOnWindowFocus: false,
   });
   const forecast = useQuery({
-    queryKey: ["forecast", active.lat, active.lon, units],
-    queryFn: () => getForecast(active.lat, active.lon, units),
+    queryKey: ["forecast", active.lat, active.lon, units, owmLang],
+    queryFn: () => getForecast(active.lat, active.lon, units, owmLang),
     refetchOnWindowFocus: false,
   });
   const air = useQuery({
