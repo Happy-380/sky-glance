@@ -10,6 +10,9 @@ export interface SavedLocation {
 }
 
 const KEY = "vertex-weather-locations";
+const ACTIVE_KEY = "vertex-weather-active";
+const UNITS_KEY = "vertex-weather-units";
+const EVT = "locations-changed";
 
 function read(): SavedLocation[] {
   if (typeof window === "undefined") return [];
@@ -22,7 +25,7 @@ function read(): SavedLocation[] {
 
 function write(locs: SavedLocation[]) {
   localStorage.setItem(KEY, JSON.stringify(locs));
-  window.dispatchEvent(new Event("locations-changed"));
+  window.dispatchEvent(new Event(EVT));
 }
 
 export function useLocations() {
@@ -30,8 +33,8 @@ export function useLocations() {
   useEffect(() => {
     setLocs(read());
     const h = () => setLocs(read());
-    window.addEventListener("locations-changed", h);
-    return () => window.removeEventListener("locations-changed", h);
+    window.addEventListener(EVT, h);
+    return () => window.removeEventListener(EVT, h);
   }, []);
   return locs;
 }
@@ -48,4 +51,43 @@ export function removeLocation(id: string) {
 
 export function makeId(lat: number, lon: number) {
   return `${lat.toFixed(3)}_${lon.toFixed(3)}`;
+}
+
+/* ---------- active location ---------- */
+
+export function setActiveId(id: string) {
+  localStorage.setItem(ACTIVE_KEY, id);
+  window.dispatchEvent(new Event(EVT));
+}
+
+export function useActiveId() {
+  const [id, setId] = useState<string | null>(null);
+  useEffect(() => {
+    setId(localStorage.getItem(ACTIVE_KEY));
+    const h = () => setId(localStorage.getItem(ACTIVE_KEY));
+    window.addEventListener(EVT, h);
+    return () => window.removeEventListener(EVT, h);
+  }, []);
+  return id;
+}
+
+/* ---------- units ---------- */
+
+export type Units = "metric" | "imperial";
+
+export function setUnitsPref(u: Units) {
+  localStorage.setItem(UNITS_KEY, u);
+  window.dispatchEvent(new Event(EVT));
+}
+
+export function useUnits(): Units {
+  const [u, setU] = useState<Units>("metric");
+  useEffect(() => {
+    const get = () => (localStorage.getItem(UNITS_KEY) as Units) || "metric";
+    setU(get());
+    const h = () => setU(get());
+    window.addEventListener(EVT, h);
+    return () => window.removeEventListener(EVT, h);
+  }, []);
+  return u;
 }
