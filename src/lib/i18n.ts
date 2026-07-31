@@ -60,6 +60,8 @@ const D: Dict = {
   sunriseAt: { zh: "日出：", en: "Sunrise: " },
   sunsetAt: { zh: "日落：", en: "Sunset: " },
   noSaved: { zh: "还没有城市，搜索并添加。", en: "No cities yet — search to add one." },
+  highlights: { zh: "重点", en: "Highlights" },
+
 };
 
 
