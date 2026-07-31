@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Loader2, MapPin, List, MoreHorizontal, Check, Pencil } from "lucide-react";
+import { Loader2, MapPin, List, MoreHorizontal, Check, Pencil, Sparkles } from "lucide-react";
 import {
   getCurrent, getForecast, getAir, iconUrl, summarizeDaily,
 } from "@/lib/weather";
