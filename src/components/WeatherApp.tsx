@@ -12,6 +12,8 @@ import {
 import { detectLang, makeT, formatHourL, formatDayL, formatTimeL, isNightAt } from "@/lib/i18n";
 import { weatherGradient } from "@/lib/gradient";
 import { WeatherCards } from "@/components/WeatherCards";
+import { buildHighlights } from "@/lib/highlights";
+
 
 const DEFAULT: SavedLocation = {
   id: makeId(40.7128, -74.006),
