@@ -13,11 +13,11 @@ function Card({
 }: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
   return (
     <div
-      className={`flex min-w-0 flex-col rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
+      className={`flex min-h-[150px] min-w-0 flex-col rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
         span === 2 ? "col-span-2" : ""
       }`}
     >
-      <div className="mb-3 flex items-center gap-1.5 text-[13px] font-medium text-white/70">
+      <div className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-white/70">
         {icon}
         <span className="truncate">{title}</span>
       </div>
@@ -27,8 +27,16 @@ function Card({
 }
 
 function Big({ children }: { children: React.ReactNode }) {
-  return <div className="truncate text-[34px] font-light leading-none">{children}</div>;
+  return (
+    <div
+      className="truncate font-light leading-none"
+      style={{ fontSize: "clamp(22px, 6.5vw, 32px)" }}
+    >
+      {children}
+    </div>
+  );
 }
+
 
 function WindDial({ deg, value }: { deg: number; value: string }) {
   return (
