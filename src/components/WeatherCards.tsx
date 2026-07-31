@@ -40,7 +40,7 @@ function Big({ children }: { children: React.ReactNode }) {
 
 function WindDial({ deg, value }: { deg: number; value: string }) {
   return (
-    <div className="relative h-[110px] w-[110px] shrink-0">
+    <div className="relative h-[92px] w-[92px] shrink-0 sm:h-[110px] sm:w-[110px]">
       <svg viewBox="0 0 100 100" className="h-full w-full">
         {Array.from({ length: 60 }).map((_, i) => (
           <line
