@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Loader2, MapPin, List, MoreHorizontal, Check, Pencil } from "lucide-react";
+import { Loader2, MapPin, List, MoreHorizontal, Check, Pencil, Sparkles } from "lucide-react";
 import {
   getCurrent, getForecast, getAir, iconUrl, summarizeDaily,
 } from "@/lib/weather";
@@ -12,6 +12,8 @@ import {
 import { detectLang, makeT, formatHourL, formatDayL, formatTimeL, isNightAt } from "@/lib/i18n";
 import { weatherGradient } from "@/lib/gradient";
 import { WeatherCards } from "@/components/WeatherCards";
+import { buildHighlights } from "@/lib/highlights";
+
 
 const DEFAULT: SavedLocation = {
   id: makeId(40.7128, -74.006),
@@ -89,9 +91,31 @@ export function WeatherApp() {
   const rangeMin = daily.length ? Math.min(...daily.map((d) => d.min)) : 0;
   const rangeMax = daily.length ? Math.max(...daily.map((d) => d.max)) : 1;
 
+  // OpenWeather's current temp_min/max is often equal to temp (esp. in CN).
+  // Derive today's true high/low from the forecast, falling back to current.
+  const todayHi = current.data
+    ? Math.round(
+        Math.max(current.data.main.temp, current.data.main.temp_max, daily[0]?.max ?? -Infinity),
+      )
+    : 0;
+  const todayLo = current.data
+    ? Math.round(
+        Math.min(current.data.main.temp, current.data.main.temp_min, daily[0]?.min ?? Infinity),
+      )
+    : 0;
+
+  const highlights = useMemo(
+    () =>
+      forecast.data
+        ? buildHighlights(forecast.data.list, tz, current.data?.dt ?? Date.now() / 1000, lang, units)
+        : [],
+    [forecast.data, tz, current.data?.dt, lang, units],
+  );
+
   return (
     <div className="min-h-screen w-full overflow-x-hidden text-white" style={{ background: bg }}>
-      <div className="mx-auto flex min-h-screen w-full max-w-2xl min-w-0 flex-col px-4 pb-10 pt-3 md:px-6">
+      <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-2xl flex-col px-4 pb-10 pt-3 md:px-6 lg:max-w-6xl">
+
         {/* Top bar */}
         <header className="flex items-center justify-between">
           <Link
@@ -163,76 +187,100 @@ export function WeatherApp() {
                 </div>
                 <h1 className="mt-1 text-3xl font-medium tracking-tight md:text-4xl">{active.name}</h1>
                 <div className="mt-1 flex items-start justify-center">
-                  <span className="font-thin leading-none tracking-tighter" style={{ fontSize: "clamp(72px, 22vw, 130px)" }}>
+                  <span className="font-thin leading-none tracking-tighter" style={{ fontSize: "clamp(72px, 22vw, 120px)" }}>
                     {Math.round(current.data.main.temp)}
                   </span>
-                  <span className="mt-3 font-thin text-white/85" style={{ fontSize: "clamp(28px, 8vw, 46px)" }}>°</span>
+                  <span className="mt-3 font-thin text-white/85" style={{ fontSize: "clamp(28px, 8vw, 42px)" }}>°</span>
                 </div>
                 <p className="mt-1 text-base capitalize text-white/90">
                   {current.data.weather[0].description}
                 </p>
                 <div className="mt-1 flex items-center justify-center gap-4 text-sm text-white/90">
-                  <span><span className="text-white/70">{T.t("high")}</span> {Math.round(current.data.main.temp_max)}°</span>
-                  <span><span className="text-white/70">{T.t("low")}</span> {Math.round(current.data.main.temp_min)}°</span>
+                  <span><span className="text-white/70">{T.t("high")}</span> {todayHi}°</span>
+                  <span><span className="text-white/70">{T.t("low")}</span> {todayLo}°</span>
                 </div>
               </section>
 
-              {/* Hourly */}
-              <section className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-                <p className="mb-3 border-b border-white/15 pb-3 text-sm text-white/90">{sentence}</p>
-                <div className="flex gap-4 overflow-x-auto pb-1">
-                  {hourly.map((h, i) => {
-                    const isSunset =
-                      current.data &&
-                      h.dt <= current.data.sys.sunset &&
-                      (hourly[i + 1]?.dt ?? Infinity) > current.data.sys.sunset;
-                    return (
-                      <div key={h.dt} className="flex min-w-[52px] flex-col items-center gap-2">
-                        <span className="text-xs font-medium text-white/85">
-                          {i === 0 ? T.t("now") : formatHourL(h.dt, tz, lang)}
-                        </span>
-                        <img src={iconUrl(h.weather[0].icon)} alt="" className="h-9 w-9" />
-                        <span className="text-sm font-medium">{Math.round(h.main.temp)}°</span>
-                        {isSunset && <span className="text-[10px] text-amber-200">{T.t("sunset")}</span>}
-                        {h.pop > 0.2 && <span className="text-[10px] text-sky-200">{Math.round(h.pop * 100)}%</span>}
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
+              <div className="grid min-w-0 gap-4 lg:grid-cols-2 lg:items-start">
+                <div className="flex min-w-0 flex-col gap-4">
+                  {/* Highlights */}
+                  {highlights.length > 0 && (
+                    <section className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
+                      <h3 className="mb-2 flex items-center gap-1.5 border-b border-white/15 pb-2 text-xs font-semibold uppercase tracking-widest text-white/60">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        {T.t("highlights")}
+                      </h3>
+                      <ul className="space-y-2">
+                        {highlights.map((h, i) => (
+                          <li key={i} className="flex min-w-0 items-start gap-2 text-sm text-white/90">
+                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-white/60" />
+                            <span className="min-w-0">{h.text}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
 
-              {/* Daily */}
-              <section className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-                <h3 className="mb-2 border-b border-white/15 pb-2 text-xs font-semibold uppercase tracking-widest text-white/60">
-                  {T.t("dayForecast")}
-                </h3>
-                <div className="divide-y divide-white/10">
-                  {daily.map((d, i) => {
-                    const leftPct = ((d.min - rangeMin) / (rangeMax - rangeMin || 1)) * 100;
-                    const widthPct = ((d.max - d.min) / (rangeMax - rangeMin || 1)) * 100;
-                    return (
-                      <div key={d.dt} className="grid grid-cols-[56px_36px_1fr] items-center gap-3 py-2.5">
-                        <span className="text-sm text-white/90">{formatDayL(d.dt, tz, lang, i === 0)}</span>
-                        <img src={iconUrl(d.icon)} alt="" className="h-8 w-8" />
-                        <div className="flex items-center gap-2 text-sm tabular-nums">
-                          <span className="w-8 text-right text-white/60">{Math.round(d.min)}°</span>
-                          <div className="relative h-1.5 flex-1 rounded-full bg-white/20">
-                            <div
-                              className="absolute top-0 h-full rounded-full"
-                              style={{
-                                left: `${leftPct}%`,
-                                width: `${Math.max(widthPct, 6)}%`,
-                                background: "linear-gradient(to right, #38bdf8, #fbbf24, #f97316)",
-                              }}
-                            />
+                  {/* Hourly */}
+                  <section className="min-w-0 rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
+                    <p className="mb-3 border-b border-white/15 pb-3 text-sm text-white/90">{sentence}</p>
+                    <div className="flex gap-4 overflow-x-auto pb-1">
+                      {hourly.map((h, i) => {
+                        const isSunset =
+                          current.data &&
+                          h.dt <= current.data.sys.sunset &&
+                          (hourly[i + 1]?.dt ?? Infinity) > current.data.sys.sunset;
+                        return (
+                          <div key={h.dt} className="flex min-w-[52px] flex-col items-center gap-2">
+                            <span className="text-xs font-medium text-white/85">
+                              {i === 0 ? T.t("now") : formatHourL(h.dt, tz, lang)}
+                            </span>
+                            <img src={iconUrl(h.weather[0].icon)} alt="" className="h-9 w-9" />
+                            <span className="text-sm font-medium">{Math.round(h.main.temp)}°</span>
+                            {isSunset && <span className="text-[10px] text-amber-200">{T.t("sunset")}</span>}
+                            {h.pop > 0.2 && <span className="text-[10px] text-sky-200">{Math.round(h.pop * 100)}%</span>}
                           </div>
-                          <span className="w-8 text-white">{Math.round(d.max)}°</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
+                    </div>
+                  </section>
                 </div>
-              </section>
+
+                {/* Daily */}
+                <section className="min-w-0 rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
+                  <h3 className="mb-2 border-b border-white/15 pb-2 text-xs font-semibold uppercase tracking-widest text-white/60">
+                    {T.t("dayForecast")}
+                  </h3>
+                  <div className="divide-y divide-white/10">
+                    {daily.map((d, i) => {
+                      const leftPct = ((d.min - rangeMin) / (rangeMax - rangeMin || 1)) * 100;
+                      const widthPct = ((d.max - d.min) / (rangeMax - rangeMin || 1)) * 100;
+                      return (
+                        <div key={d.dt} className="grid grid-cols-[52px_32px_1fr] items-center gap-2 py-2.5 sm:grid-cols-[56px_36px_1fr] sm:gap-3">
+                          <span className="truncate text-sm text-white/90">{formatDayL(d.dt, tz, lang, i === 0)}</span>
+                          <img src={iconUrl(d.icon)} alt="" className="h-8 w-8" />
+                          <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
+                            <span className="w-8 shrink-0 text-right text-white/60">{Math.round(d.min)}°</span>
+                            <div className="relative h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
+                              <div
+                                className="absolute top-0 h-full rounded-full"
+                                style={{
+                                  left: `${leftPct}%`,
+                                  width: `${Math.max(widthPct, 6)}%`,
+                                  background: "linear-gradient(to right, #38bdf8, #fbbf24, #f97316)",
+                                }}
+                              />
+                            </div>
+                            <span className="w-8 shrink-0 text-white">{Math.round(d.max)}°</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
+
+
 
               {/* Detail cards */}
               <WeatherCards

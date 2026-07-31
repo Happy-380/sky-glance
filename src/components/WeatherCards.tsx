@@ -13,11 +13,11 @@ function Card({
 }: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
   return (
     <div
-      className={`flex min-w-0 flex-col rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
+      className={`flex min-h-[150px] min-w-0 flex-col rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
         span === 2 ? "col-span-2" : ""
       }`}
     >
-      <div className="mb-3 flex items-center gap-1.5 text-[13px] font-medium text-white/70">
+      <div className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-white/70">
         {icon}
         <span className="truncate">{title}</span>
       </div>
@@ -27,12 +27,20 @@ function Card({
 }
 
 function Big({ children }: { children: React.ReactNode }) {
-  return <div className="truncate text-[34px] font-light leading-none">{children}</div>;
+  return (
+    <div
+      className="truncate font-light leading-none"
+      style={{ fontSize: "clamp(22px, 6.5vw, 32px)" }}
+    >
+      {children}
+    </div>
+  );
 }
+
 
 function WindDial({ deg, value }: { deg: number; value: string }) {
   return (
-    <div className="relative h-[110px] w-[110px] shrink-0">
+    <div className="relative h-[92px] w-[92px] shrink-0 sm:h-[110px] sm:w-[110px]">
       <svg viewBox="0 0 100 100" className="h-full w-full">
         {Array.from({ length: 60 }).map((_, i) => (
           <line
@@ -60,7 +68,7 @@ function SunArc({ progress }: { progress: number }) {
   const x = 4 + p * 92;
   const y = 30 - Math.sin(p * Math.PI) * 22;
   return (
-    <svg viewBox="0 0 100 44" className="mt-2 h-16 w-full">
+    <svg viewBox="0 0 100 44" className="mt-2 h-12 w-full sm:h-14">
       <path d="M4 30 Q50 -10 96 30" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
       <line x1="0" y1="34" x2="100" y2="34" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
       <circle cx={x} cy={y} r="3.5" fill="white" />
@@ -91,7 +99,7 @@ export function WeatherCards({
   const aqiPct = air ? ((air.aqi - 1) / 4) * 100 : 0;
 
   return (
-    <section className="grid grid-cols-2 gap-3">
+    <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {/* 平均 */}
       <Card title={T.t("average")} icon={<TrendingUp className="h-4 w-4" />}>
         <Big>{diff >= 0 ? "+" : ""}{diff}°</Big>
@@ -117,7 +125,7 @@ export function WeatherCards({
       {/* 体感温度 */}
       <Card title={T.t("feelsLike")} icon={<Thermometer className="h-4 w-4" />}>
         <Big>{Math.round(cur.main.feels_like)}°</Big>
-        <p className="mt-auto pt-6 text-sm text-white/85">
+        <p className="mt-auto pt-3 text-sm text-white/85">
           {Math.abs(feelsDiff) < 1
             ? T.t("feelsSame")
             : feelsDiff > 0
@@ -187,13 +195,13 @@ export function WeatherCards({
       {/* 能见度 */}
       <Card title={T.t("visibility")} icon={<Eye className="h-4 w-4" />}>
         <Big>{(cur.visibility / 1000).toFixed(1)} {lang === "zh" ? "公里" : "km"}</Big>
-        <p className="mt-auto pt-6 text-sm text-white/80">{T.t("cloudiness")} {cur.clouds.all}%</p>
+        <p className="mt-auto pt-3 text-sm text-white/80">{T.t("cloudiness")} {cur.clouds.all}%</p>
       </Card>
 
       {/* 湿度 */}
       <Card title={T.t("humidity")} icon={<Droplets className="h-4 w-4" />}>
         <Big>{cur.main.humidity}%</Big>
-        <p className="mt-auto pt-6 text-sm text-white/80">
+        <p className="mt-auto pt-3 text-sm text-white/80">
           {T.t("feelsLike")} {Math.round(cur.main.feels_like)}°
         </p>
       </Card>
@@ -201,7 +209,7 @@ export function WeatherCards({
       {/* 气压 */}
       <Card title={T.t("pressure")} icon={<Gauge className="h-4 w-4" />}>
         <Big>{cur.main.pressure}</Big>
-        <p className="mt-auto pt-6 text-sm text-white/80">hPa</p>
+        <p className="mt-auto pt-3 text-sm text-white/80">hPa</p>
       </Card>
 
       {/* 云量 */}
