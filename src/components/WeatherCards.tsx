@@ -13,8 +13,8 @@ function Card({
 }: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
   return (
     <div
-      className={`flex min-h-[150px] min-w-0 flex-col rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
-        span === 2 ? "col-span-2" : ""
+      className={`flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
+        span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
       }`}
     >
       <div className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-white/70">
@@ -28,10 +28,7 @@ function Card({
 
 function Big({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className="truncate font-light leading-none"
-      style={{ fontSize: "clamp(22px, 6.5vw, 32px)" }}
-    >
+    <div className="truncate text-[26px] font-light leading-none">
       {children}
     </div>
   );
@@ -40,7 +37,7 @@ function Big({ children }: { children: React.ReactNode }) {
 
 function WindDial({ deg, value }: { deg: number; value: string }) {
   return (
-    <div className="relative h-[92px] w-[92px] shrink-0 sm:h-[110px] sm:w-[110px]">
+    <div className="relative h-[92px] w-[92px] shrink-0">
       <svg viewBox="0 0 100 100" className="h-full w-full">
         {Array.from({ length: 60 }).map((_, i) => (
           <line
@@ -68,7 +65,7 @@ function SunArc({ progress }: { progress: number }) {
   const x = 4 + p * 92;
   const y = 30 - Math.sin(p * Math.PI) * 22;
   return (
-    <svg viewBox="0 0 100 44" className="mt-2 h-12 w-full sm:h-14">
+    <svg viewBox="0 0 100 44" className="mt-2 h-12 w-full">
       <path d="M4 30 Q50 -10 96 30" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
       <line x1="0" y1="34" x2="100" y2="34" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
       <circle cx={x} cy={y} r="3.5" fill="white" />
@@ -99,7 +96,13 @@ export function WeatherCards({
   const aqiPct = air ? ((air.aqi - 1) / 4) * 100 : 0;
 
   return (
-    <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <section
+      className="grid gap-3"
+      style={{
+        gridTemplateColumns: "repeat(auto-fill, minmax(150px, 200px))",
+        justifyContent: "center",
+      }}
+    >
       {/* 平均 */}
       <Card title={T.t("average")} icon={<TrendingUp className="h-4 w-4" />}>
         <Big>{diff >= 0 ? "+" : ""}{diff}°</Big>
