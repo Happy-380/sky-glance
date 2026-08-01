@@ -13,7 +13,7 @@ function Card({
 }: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
   return (
     <div
-      className={`flex min-w-0 flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
+      className={`flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
         span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
       }`}
     >
@@ -21,7 +21,7 @@ function Card({
         {icon}
         <span className="truncate">{title}</span>
       </div>
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
     </div>
   );
 }
@@ -74,7 +74,7 @@ function SunArc({ progress }: { progress: number }) {
 }
 
 export function WeatherCards({
-  cur, daily, T, lang, tz, units, air, pop,
+  cur, daily, T, lang, tz, units, air, pop, todayHi,
 }: {
   cur: CurrentWeather;
   daily: DailySummary[];
@@ -84,12 +84,13 @@ export function WeatherCards({
   units: "metric" | "imperial";
   air?: { aqi: number; pm2_5: number; pm10: number; o3: number };
   pop: number;
+  todayHi: number;
 }) {
   const windUnit = units === "metric" ? (lang === "zh" ? "米/秒" : "m/s") : "mph";
   const avgHigh = daily.length
     ? daily.reduce((s, d) => s + d.max, 0) / daily.length
     : cur.main.temp_max;
-  const diff = Math.round(cur.main.temp_max - avgHigh);
+  const diff = Math.round(todayHi - avgHigh);
   const feelsDiff = cur.main.feels_like - cur.main.temp;
   const now = cur.dt;
   const sunProgress = (now - cur.sys.sunrise) / (cur.sys.sunset - cur.sys.sunrise || 1);
@@ -106,14 +107,14 @@ export function WeatherCards({
       {/* 平均 */}
       <Card title={T.t("average")} icon={<TrendingUp className="h-4 w-4" />}>
         <Big>{diff >= 0 ? "+" : ""}{diff}°</Big>
-        <p className="mt-2 text-sm text-white/85">
+        <p className="mt-1.5 text-xs text-white/85">
           {diff >= 0 ? T.t("aboveAvgHigh") : T.t("belowAvgHigh")}
         </p>
-        <div className="mt-auto space-y-1 pt-4 text-sm text-white/70">
+        <div className="mt-auto space-y-1 pt-3 text-xs text-white/70">
           <div className="flex justify-between gap-2">
             <span>{T.t("todayLabel")}</span>
             <span className="font-medium text-white">
-              {T.t("maxShort")} {Math.round(cur.main.temp_max)}°
+              {T.t("maxShort")} {todayHi}°
             </span>
           </div>
           <div className="flex justify-between gap-2">
@@ -128,7 +129,7 @@ export function WeatherCards({
       {/* 体感温度 */}
       <Card title={T.t("feelsLike")} icon={<Thermometer className="h-4 w-4" />}>
         <Big>{Math.round(cur.main.feels_like)}°</Big>
-        <p className="mt-auto pt-3 text-sm text-white/85">
+        <p className="mt-auto pt-2 text-xs text-white/85">
           {Math.abs(feelsDiff) < 1
             ? T.t("feelsSame")
             : feelsDiff > 0
@@ -181,7 +182,7 @@ export function WeatherCards({
       <Card title={T.t("sunset")} icon={<SunsetIcon className="h-4 w-4" />}>
         <Big>{formatTimeL(cur.sys.sunset, tz)}</Big>
         <SunArc progress={sunProgress} />
-        <p className="mt-auto pt-2 text-sm text-white/80">
+        <p className="mt-auto pt-2 text-xs text-white/80">
           {T.t("sunriseAt")}{formatTimeL(cur.sys.sunrise, tz)}
         </p>
       </Card>
@@ -192,19 +193,19 @@ export function WeatherCards({
         <div className="mt-3 h-1.5 rounded-full bg-white/20">
           <div className="h-full rounded-full bg-sky-300" style={{ width: `${Math.round(pop * 100)}%` }} />
         </div>
-        <p className="mt-auto pt-4 text-sm text-white/80">{T.t("humidity")} {cur.main.humidity}%</p>
+        <p className="mt-auto pt-2 text-xs text-white/80">{T.t("humidity")} {cur.main.humidity}%</p>
       </Card>
 
       {/* 能见度 */}
       <Card title={T.t("visibility")} icon={<Eye className="h-4 w-4" />}>
         <Big>{(cur.visibility / 1000).toFixed(1)} {lang === "zh" ? "公里" : "km"}</Big>
-        <p className="mt-auto pt-3 text-sm text-white/80">{T.t("cloudiness")} {cur.clouds.all}%</p>
+        <p className="mt-auto pt-2 text-xs text-white/80">{T.t("cloudiness")} {cur.clouds.all}%</p>
       </Card>
 
       {/* 湿度 */}
       <Card title={T.t("humidity")} icon={<Droplets className="h-4 w-4" />}>
         <Big>{cur.main.humidity}%</Big>
-        <p className="mt-auto pt-3 text-sm text-white/80">
+        <p className="mt-auto pt-2 text-xs text-white/80">
           {T.t("feelsLike")} {Math.round(cur.main.feels_like)}°
         </p>
       </Card>
@@ -212,7 +213,7 @@ export function WeatherCards({
       {/* 气压 */}
       <Card title={T.t("pressure")} icon={<Gauge className="h-4 w-4" />}>
         <Big>{cur.main.pressure}</Big>
-        <p className="mt-auto pt-3 text-sm text-white/80">hPa</p>
+        <p className="mt-auto pt-2 text-xs text-white/80">hPa</p>
       </Card>
 
       {/* 云量 */}
@@ -221,7 +222,7 @@ export function WeatherCards({
         <div className="mt-3 h-1.5 rounded-full bg-white/20">
           <div className="h-full rounded-full bg-white/70" style={{ width: `${cur.clouds.all}%` }} />
         </div>
-        <p className="mt-auto pt-4 text-sm capitalize text-white/80">{cur.weather[0].description}</p>
+        <p className="mt-auto pt-2 text-xs capitalize text-white/80">{cur.weather[0].description}</p>
       </Card>
     </section>
   );

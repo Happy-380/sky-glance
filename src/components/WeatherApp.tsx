@@ -295,6 +295,7 @@ export function WeatherApp() {
                 tz={tz}
                 units={units}
                 pop={forecast.data?.list[0]?.pop ?? 0}
+                todayHi={todayHi}
                 air={
                   air.data
                     ? {
