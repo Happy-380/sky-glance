@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { Search, Loader2, Trash2, MoreHorizontal, Check, Pencil } from "lucide-react";
+import { useNavigate, Link } from "@tanstack/react-router";
+import { Search, Loader2, Trash2, MoreHorizontal, Check, Pencil, ChevronLeft } from "lucide-react";
 import { geocode, getCurrent, iconUrl, type GeoCity } from "@/lib/weather";
 import {
   useLocations, useUnits, setUnitsPref, addLocation, removeLocation,
