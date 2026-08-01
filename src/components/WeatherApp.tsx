@@ -105,18 +105,8 @@ export function WeatherApp() {
   const rangeMin = daily.length ? Math.min(...daily.map((d) => d.min)) : 0;
   const rangeMax = daily.length ? Math.max(...daily.map((d) => d.max)) : 1;
 
-  // OpenWeather's current temp_min/max is often equal to temp (esp. in CN).
-  // Derive today's true high/low from the forecast, falling back to current.
-  const todayHi = current.data
-    ? Math.round(
-        Math.max(current.data.main.temp, current.data.main.temp_max, daily[0]?.max ?? -Infinity),
-      )
-    : 0;
-  const todayLo = current.data
-    ? Math.round(
-        Math.min(current.data.main.temp, current.data.main.temp_min, daily[0]?.min ?? Infinity),
-      )
-    : 0;
+  const todayHi = daily.length ? Math.round(daily[0].max) : Math.round(current.data?.main.temp ?? 0);
+  const todayLo = daily.length ? Math.round(daily[0].min) : Math.round(current.data?.main.temp ?? 0);
 
   const highlights = useMemo(
     () =>
