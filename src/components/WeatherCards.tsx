@@ -13,8 +13,8 @@ function Card({
 }: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
   return (
     <div
-      className={`flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
-        span === 2 ? "col-span-2" : ""
+      className={`flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
+        span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
       }`}
     >
       <div className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-white/70">
@@ -98,7 +98,7 @@ export function WeatherCards({
 
   return (
     <section
-      className="mx-auto grid w-full max-w-[836px] grid-cols-2 auto-rows-[calc((100%-0.75rem)/2)] gap-3 md:grid-cols-4 md:auto-rows-[calc((100%-2.25rem)/4)]"
+      className="mx-auto grid w-full max-w-[836px] grid-cols-2 gap-3 md:grid-cols-4"
     >
       {/* 平均 */}
       <Card title={T.t("average")} icon={<TrendingUp className="h-4 w-4" />}>
