@@ -63,7 +63,21 @@ export function WeatherApp() {
   });
 
   const tz = current.data?.timezone ?? 0;
-  const daily = forecast.data ? summarizeDaily(forecast.data.list, tz) : [];
+  // Merge the live reading into today's summary so the hero and the forecast
+  // list always show the exact same high/low.
+  const daily = useMemo(() => {
+    if (!forecast.data) return [];
+    const list = summarizeDaily(forecast.data.list, tz);
+    const cur = current.data;
+    if (list.length && cur) {
+      list[0] = {
+        ...list[0],
+        max: Math.max(list[0].max, cur.main.temp, cur.main.temp_max),
+        min: Math.min(list[0].min, cur.main.temp, cur.main.temp_min),
+      };
+    }
+    return list;
+  }, [forecast.data, current.data, tz]);
   const hourly = forecast.data?.list.slice(0, 10) ?? [];
   const windUnit = units === "metric" ? (lang === "zh" ? "米/秒" : "m/s") : "mph";
 
@@ -91,18 +105,8 @@ export function WeatherApp() {
   const rangeMin = daily.length ? Math.min(...daily.map((d) => d.min)) : 0;
   const rangeMax = daily.length ? Math.max(...daily.map((d) => d.max)) : 1;
 
-  // OpenWeather's current temp_min/max is often equal to temp (esp. in CN).
-  // Derive today's true high/low from the forecast, falling back to current.
-  const todayHi = current.data
-    ? Math.round(
-        Math.max(current.data.main.temp, current.data.main.temp_max, daily[0]?.max ?? -Infinity),
-      )
-    : 0;
-  const todayLo = current.data
-    ? Math.round(
-        Math.min(current.data.main.temp, current.data.main.temp_min, daily[0]?.min ?? Infinity),
-      )
-    : 0;
+  const todayHi = daily.length ? Math.round(daily[0].max) : Math.round(current.data?.main.temp ?? 0);
+  const todayLo = daily.length ? Math.round(daily[0].min) : Math.round(current.data?.main.temp ?? 0);
 
   const highlights = useMemo(
     () =>
@@ -291,6 +295,7 @@ export function WeatherApp() {
                 tz={tz}
                 units={units}
                 pop={forecast.data?.list[0]?.pop ?? 0}
+                todayHi={todayHi}
                 air={
                   air.data
                     ? {

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { Search, Loader2, Trash2, MoreHorizontal, Check, Pencil } from "lucide-react";
+import { useNavigate, Link } from "@tanstack/react-router";
+import { Search, Loader2, Trash2, MoreHorizontal, Check, Pencil, ChevronLeft } from "lucide-react";
 import { geocode, getCurrent, iconUrl, type GeoCity } from "@/lib/weather";
 import {
   useLocations, useUnits, setUnitsPref, addLocation, removeLocation,
@@ -44,8 +44,15 @@ export function CityList() {
       style={{ background: "linear-gradient(160deg, #14324f 0%, #0a1b2e 100%)" }}
     >
       <div className="mx-auto flex min-h-screen w-full max-w-2xl min-w-0 flex-col px-4 pb-10 pt-4 md:px-6">
-        <header className="mb-4 flex items-center justify-between">
-          <h1 className="text-3xl font-bold tracking-tight">{T.t("weatherTitle")}</h1>
+        <header className="mb-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
+          <Link
+            to="/"
+            className="shrink-0 rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl"
+            aria-label={T.t("back")}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Link>
+          <h1 className="truncate text-3xl font-bold tracking-tight">{T.t("weatherTitle")}</h1>
           <div className="relative">
             <button
               onClick={() => setMenuOpen((v) => !v)}
