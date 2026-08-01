@@ -13,7 +13,7 @@ function Card({
 }: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
   return (
     <div
-      className={`flex min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
+      className={`flex min-h-0 min-w-0 self-start flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
         span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
       }`}
     >
@@ -98,11 +98,7 @@ export function WeatherCards({
 
   return (
     <section
-      className="grid gap-3"
-      style={{
-        gridTemplateColumns: "repeat(auto-fill, minmax(150px, 200px))",
-        justifyContent: "center",
-      }}
+      className="mx-auto grid w-full max-w-[836px] grid-cols-2 items-start gap-3 md:grid-cols-4"
     >
       {/* 平均 */}
       <Card title={T.t("average")} icon={<TrendingUp className="h-4 w-4" />}>
