@@ -22,7 +22,7 @@ const D: Dict = {
   now: { zh: "现在", en: "Now" },
   sunset: { zh: "日落", en: "Sunset" },
   sunrise: { zh: "日出", en: "Sunrise" },
-  dayForecast: { zh: "10 日天气预报", en: "7-Day Forecast" },
+  dayForecast: { zh: "天气预报", en: "Forecast" },
   today: { zh: "今天", en: "Today" },
   feelsLike: { zh: "体感温度", en: "Feels Like" },
   wind: { zh: "风", en: "Wind" },
