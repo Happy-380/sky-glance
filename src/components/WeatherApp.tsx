@@ -63,7 +63,21 @@ export function WeatherApp() {
   });
 
   const tz = current.data?.timezone ?? 0;
-  const daily = forecast.data ? summarizeDaily(forecast.data.list, tz) : [];
+  // Merge the live reading into today's summary so the hero and the forecast
+  // list always show the exact same high/low.
+  const daily = useMemo(() => {
+    if (!forecast.data) return [];
+    const list = summarizeDaily(forecast.data.list, tz);
+    const cur = current.data;
+    if (list.length && cur) {
+      list[0] = {
+        ...list[0],
+        max: Math.max(list[0].max, cur.main.temp, cur.main.temp_max),
+        min: Math.min(list[0].min, cur.main.temp, cur.main.temp_min),
+      };
+    }
+    return list;
+  }, [forecast.data, current.data, tz]);
   const hourly = forecast.data?.list.slice(0, 10) ?? [];
   const windUnit = units === "metric" ? (lang === "zh" ? "米/秒" : "m/s") : "mph";
 
