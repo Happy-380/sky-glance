@@ -1,10 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Loader2, MapPin, List, MoreHorizontal, Check, Pencil, Sparkles } from "lucide-react";
+import {
+  Loader2, MapPin, List, MoreHorizontal, Check, Pencil, Sparkles,
+  Cloud, Droplet, Wind as WindIcon, Navigation,
+} from "lucide-react";
 import {
   getCurrent, getForecast, getAir, iconUrl, summarizeDaily,
+  type DailySummary,
 } from "@/lib/weather";
+import { getOpenMeteo, type OMDay, type OMHour } from "@/lib/openmeteo";
 import {
   useLocations, useActiveId, useUnits, setUnitsPref, makeId,
   type SavedLocation,
@@ -14,7 +19,6 @@ import { weatherGradient } from "@/lib/gradient";
 import { WeatherCards } from "@/components/WeatherCards";
 import { buildHighlights } from "@/lib/highlights";
 
-
 const DEFAULT: SavedLocation = {
   id: makeId(40.7128, -74.006),
   name: "New York",
@@ -22,6 +26,8 @@ const DEFAULT: SavedLocation = {
   lat: 40.7128,
   lon: -74.006,
 };
+
+type Mode = "weather" | "precip" | "wind";
 
 export function WeatherApp() {
   const lang = useMemo(() => detectLang(), []);
@@ -32,6 +38,7 @@ export function WeatherApp() {
   const activeId = useActiveId();
   const units = useUnits();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mode, setMode] = useState<Mode>("weather");
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,13 +68,43 @@ export function WeatherApp() {
     queryFn: () => getAir(active.lat, active.lon),
     refetchOnWindowFocus: false,
   });
+  // 1-hour steps + 10 days (OpenWeather's free plan tops out at 3h / 5 days)
+  const om = useQuery({
+    queryKey: ["om", active.lat, active.lon, units, lang],
+    queryFn: () => getOpenMeteo(active.lat, active.lon, units, lang),
+    refetchOnWindowFocus: false,
+  });
 
-  const tz = current.data?.timezone ?? 0;
-  // Merge the live reading into today's summary so the hero and the forecast
-  // list always show the exact same high/low.
+  const tz = current.data?.timezone ?? om.data?.utcOffset ?? 0;
+  const nowTs = current.data?.dt ?? Math.floor(Date.now() / 1000);
+
+  // Hourly: true 1h resolution when Open-Meteo answers, else OWM 3h steps.
+  const hourly: OMHour[] = useMemo(() => {
+    if (om.data) {
+      return om.data.hourly.filter((h) => h.dt >= nowTs - 3600).slice(0, 24);
+    }
+    return (forecast.data?.list ?? []).slice(0, 10).map((i) => ({
+      dt: i.dt,
+      temp: i.main.temp,
+      pop: i.pop ?? 0,
+      precip: 0,
+      wind: i.wind.speed,
+      gust: i.wind.speed * 1.4,
+      windDeg: 0,
+      icon: i.weather[0].icon,
+      description: i.weather[0].description,
+      code: i.weather[0].id,
+    }));
+  }, [om.data, forecast.data, nowTs]);
+
+  // Daily: 10 days from Open-Meteo, falling back to the OWM 5-day summary.
   const daily = useMemo(() => {
-    if (!forecast.data) return [];
-    const list = summarizeDaily(forecast.data.list, tz);
+    const base: (DailySummary & Partial<OMDay>)[] = om.data
+      ? om.data.daily
+      : forecast.data
+        ? summarizeDaily(forecast.data.list, tz)
+        : [];
+    const list = base.slice();
     const cur = current.data;
     if (list.length && cur) {
       list[0] = {
@@ -77,8 +114,8 @@ export function WeatherApp() {
       };
     }
     return list;
-  }, [forecast.data, current.data, tz]);
-  const hourly = forecast.data?.list.slice(0, 10) ?? [];
+  }, [om.data, forecast.data, current.data, tz]);
+
   const windUnit = units === "metric" ? (lang === "zh" ? "米/秒" : "m/s") : "mph";
 
   const night = current.data
@@ -95,15 +132,20 @@ export function WeatherApp() {
   const bg = weatherGradient(current.data?.weather[0]?.id, night);
 
   const sentence = useMemo(() => {
-    if (!current.data || !forecast.data) return "";
-    const maxWind = Math.max(...forecast.data.list.slice(0, 8).map((i) => i.wind.speed));
+    if (!current.data) return "";
+    const maxWind = hourly.length
+      ? Math.max(...hourly.slice(0, 12).map((h) => h.wind))
+      : current.data.wind.speed;
     const desc = current.data.weather[0].description;
     if (lang === "zh") return `今天将持续${desc}。阵风风速最高 ${maxWind.toFixed(0)} ${windUnit}。`;
     return `${desc.charAt(0).toUpperCase() + desc.slice(1)} conditions today. Wind gusts up to ${maxWind.toFixed(0)} ${windUnit}.`;
-  }, [current.data, forecast.data, lang, windUnit]);
+  }, [current.data, hourly, lang, windUnit]);
 
   const rangeMin = daily.length ? Math.min(...daily.map((d) => d.min)) : 0;
   const rangeMax = daily.length ? Math.max(...daily.map((d) => d.max)) : 1;
+  const windMaxAll = daily.length
+    ? Math.max(...daily.map((d) => d.windMax ?? 0), 1)
+    : 1;
 
   const todayHi = daily.length ? Math.round(daily[0].max) : Math.round(current.data?.main.temp ?? 0);
   const todayLo = daily.length ? Math.round(daily[0].min) : Math.round(current.data?.main.temp ?? 0);
@@ -115,6 +157,12 @@ export function WeatherApp() {
         : [],
     [forecast.data, tz, current.data?.dt, lang, units],
   );
+
+  const modes: { key: Mode; icon: React.ReactNode; label: string }[] = [
+    { key: "weather", icon: <Cloud className="h-4 w-4" />, label: T.t("modeWeather") },
+    { key: "precip", icon: <Droplet className="h-4 w-4" />, label: T.t("modePrecip") },
+    { key: "wind", icon: <WindIcon className="h-4 w-4" />, label: T.t("modeWind") },
+  ];
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden text-white" style={{ background: bg }}>
@@ -225,9 +273,26 @@ export function WeatherApp() {
                     </section>
                   )}
 
-                  {/* Hourly */}
+                  {/* Hourly + mode switch */}
                   <section className="min-w-0 rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-                    <p className="mb-3 border-b border-white/15 pb-3 text-sm text-white/90">{sentence}</p>
+                    <div className="mb-3 flex items-start justify-between gap-3 border-b border-white/15 pb-3">
+                      <p className="min-w-0 flex-1 text-sm text-white/90">{sentence}</p>
+                      <div className="flex shrink-0 rounded-full border border-white/15 bg-white/10 p-0.5">
+                        {modes.map((m) => (
+                          <button
+                            key={m.key}
+                            onClick={() => setMode(m.key)}
+                            aria-label={m.label}
+                            aria-pressed={mode === m.key}
+                            className={`rounded-full p-1.5 transition ${
+                              mode === m.key ? "bg-white/85 text-slate-900" : "text-white/80"
+                            }`}
+                          >
+                            {m.icon}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="flex gap-4 overflow-x-auto pb-1">
                       {hourly.map((h, i) => {
                         const isSunset =
@@ -239,10 +304,35 @@ export function WeatherApp() {
                             <span className="text-xs font-medium text-white/85">
                               {i === 0 ? T.t("now") : formatHourL(h.dt, tz, lang)}
                             </span>
-                            <img src={iconUrl(h.weather[0].icon)} alt="" className="h-9 w-9" />
-                            <span className="text-sm font-medium">{Math.round(h.main.temp)}°</span>
+                            {mode === "weather" && (
+                              <>
+                                <img src={iconUrl(h.icon)} alt="" className="h-9 w-9" />
+                                <span className="text-sm font-medium">{Math.round(h.temp)}°</span>
+                              </>
+                            )}
+                            {mode === "precip" && (
+                              <>
+                                <div className="flex h-9 w-2.5 items-end overflow-hidden rounded-full bg-white/20">
+                                  <div
+                                    className="w-full rounded-full bg-sky-300"
+                                    style={{ height: `${Math.max(Math.round(h.pop * 100), 3)}%` }}
+                                  />
+                                </div>
+                                <span className="text-sm font-medium text-sky-100">
+                                  {Math.round(h.pop * 100)}%
+                                </span>
+                              </>
+                            )}
+                            {mode === "wind" && (
+                              <>
+                                <Navigation
+                                  className="h-8 w-8 text-white/85"
+                                  style={{ transform: `rotate(${h.windDeg + 180}deg)` }}
+                                />
+                                <span className="text-sm font-medium">{Math.round(h.wind)}</span>
+                              </>
+                            )}
                             {isSunset && <span className="text-[10px] text-amber-200">{T.t("sunset")}</span>}
-                            {h.pop > 0.2 && <span className="text-[10px] text-sky-200">{Math.round(h.pop * 100)}%</span>}
                           </div>
                         );
                       })}
@@ -253,38 +343,76 @@ export function WeatherApp() {
                 {/* Daily */}
                 <section className="min-w-0 rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
                   <h3 className="mb-2 border-b border-white/15 pb-2 text-xs font-semibold uppercase tracking-widest text-white/60">
-                    {T.t("dayForecast")}
+                    {T.t("dayForecast")} · {modes.find((m) => m.key === mode)?.label}
                   </h3>
                   <div className="divide-y divide-white/10">
                     {daily.map((d, i) => {
                       const leftPct = ((d.min - rangeMin) / (rangeMax - rangeMin || 1)) * 100;
                       const widthPct = ((d.max - d.min) / (rangeMax - rangeMin || 1)) * 100;
+                      const pop = Math.round((d.pop ?? 0) * 100);
+                      const wind = Math.round(d.windMax ?? 0);
                       return (
                         <div key={d.dt} className="grid grid-cols-[52px_32px_1fr] items-center gap-2 py-2.5 sm:grid-cols-[56px_36px_1fr] sm:gap-3">
                           <span className="truncate text-sm text-white/90">{formatDayL(d.dt, tz, lang, i === 0)}</span>
                           <img src={iconUrl(d.icon)} alt="" className="h-8 w-8" />
-                          <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
-                            <span className="w-8 shrink-0 text-right text-white/60">{Math.round(d.min)}°</span>
-                            <div className="relative h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
-                              <div
-                                className="absolute top-0 h-full rounded-full"
-                                style={{
-                                  left: `${leftPct}%`,
-                                  width: `${Math.max(widthPct, 6)}%`,
-                                  background: "linear-gradient(to right, #38bdf8, #fbbf24, #f97316)",
-                                }}
-                              />
+
+                          {mode === "weather" && (
+                            <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
+                              <span className="w-8 shrink-0 text-right text-white/60">{Math.round(d.min)}°</span>
+                              <div className="relative h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
+                                <div
+                                  className="absolute top-0 h-full rounded-full"
+                                  style={{
+                                    left: `${leftPct}%`,
+                                    width: `${Math.max(widthPct, 6)}%`,
+                                    background: "linear-gradient(to right, #38bdf8, #fbbf24, #f97316)",
+                                  }}
+                                />
+                              </div>
+                              <span className="w-8 shrink-0 text-white">{Math.round(d.max)}°</span>
                             </div>
-                            <span className="w-8 shrink-0 text-white">{Math.round(d.max)}°</span>
-                          </div>
+                          )}
+
+                          {mode === "precip" && (
+                            <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
+                              <div className="h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
+                                <div
+                                  className="h-full rounded-full bg-sky-300"
+                                  style={{ width: `${pop}%` }}
+                                />
+                              </div>
+                              <span className="w-12 shrink-0 text-right text-sky-100">{pop}%</span>
+                              {d.precip !== undefined && (
+                                <span className="w-14 shrink-0 text-right text-xs text-white/60">
+                                  {d.precip.toFixed(1)}mm
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {mode === "wind" && (
+                            <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
+                              <Navigation
+                                className="h-3.5 w-3.5 shrink-0 text-white/80"
+                                style={{ transform: `rotate(${(d.windDeg ?? 0) + 180}deg)` }}
+                              />
+                              <div className="h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
+                                <div
+                                  className="h-full rounded-full bg-teal-200"
+                                  style={{ width: `${(wind / windMaxAll) * 100}%` }}
+                                />
+                              </div>
+                              <span className="shrink-0 text-right text-white">
+                                {wind} <span className="text-xs text-white/60">{windUnit}</span>
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
                 </section>
               </div>
-
-
 
               {/* Detail cards */}
               <WeatherCards
@@ -294,7 +422,7 @@ export function WeatherApp() {
                 lang={lang}
                 tz={tz}
                 units={units}
-                pop={forecast.data?.list[0]?.pop ?? 0}
+                pop={hourly[0]?.pop ?? 0}
                 todayHi={todayHi}
                 air={
                   air.data
