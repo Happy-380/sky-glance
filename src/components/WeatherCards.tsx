@@ -13,22 +13,28 @@ function Card({
 }: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
   return (
     <div
-      className={`flex min-h-0 min-w-0 self-start flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl ${
-        span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
+      className={`@container flex min-h-0 min-w-0 self-start flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 backdrop-blur-xl ${
+        span === 2 ? "col-span-2 aspect-[2/1] p-[3cqw]" : "aspect-square p-[6cqw]"
       }`}
     >
-      <div className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-white/70">
+      <div
+        className="mb-[3cqw] flex items-center gap-1.5 font-medium text-white/70"
+        style={{ fontSize: span === 2 ? "clamp(11px, 3.2cqw, 15px)" : "clamp(11px, 6.5cqw, 15px)" }}
+      >
         {icon}
         <span className="truncate">{title}</span>
       </div>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+      <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${span === 2 ? "justify-center gap-[2cqw]" : ""}`}>{children}</div>
     </div>
   );
 }
 
 function Big({ children }: { children: React.ReactNode }) {
   return (
-    <div className="truncate text-[26px] font-light leading-none">
+    <div
+      className="truncate font-light leading-none"
+      style={{ fontSize: "clamp(22px, min(15cqw, 40px), 40px)" }}
+    >
       {children}
     </div>
   );
@@ -37,7 +43,7 @@ function Big({ children }: { children: React.ReactNode }) {
 
 function WindDial({ deg, value }: { deg: number; value: string }) {
   return (
-    <div className="relative h-[92px] w-[92px] shrink-0">
+    <div className="relative aspect-square w-[34cqw] max-w-[130px] shrink-0">
       <svg viewBox="0 0 100 100" className="h-full w-full">
         {Array.from({ length: 60 }).map((_, i) => (
           <line
@@ -53,7 +59,7 @@ function WindDial({ deg, value }: { deg: number; value: string }) {
           <circle cx="50" cy="84" r="3.5" fill="white" />
         </g>
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-xl font-medium">
+      <div className="absolute inset-0 flex items-center justify-center font-medium" style={{ fontSize: "clamp(14px, 7cqw, 24px)" }}>
         {value}
       </div>
     </div>
@@ -103,10 +109,10 @@ export function WeatherCards({
       {/* 平均 */}
       <Card title={T.t("average")} icon={<TrendingUp className="h-4 w-4" />}>
         <Big>{diff >= 0 ? "+" : ""}{diff}°</Big>
-        <p className="mt-1.5 text-xs text-white/85">
+        <p className="mt-1.5 text-white/85" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>
           {diff >= 0 ? T.t("aboveAvgHigh") : T.t("belowAvgHigh")}
         </p>
-        <div className="mt-auto space-y-1 pt-3 text-xs text-white/70">
+        <div className="mt-auto space-y-1 pt-3 text-white/70" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>
           <div className="flex justify-between gap-2">
             <span>{T.t("todayLabel")}</span>
             <span className="font-medium text-white">
@@ -125,7 +131,7 @@ export function WeatherCards({
       {/* 体感温度 */}
       <Card title={T.t("feelsLike")} icon={<Thermometer className="h-4 w-4" />}>
         <Big>{Math.round(cur.main.feels_like)}°</Big>
-        <p className="mt-auto pt-2 text-xs text-white/85">
+        <p className="mt-auto pt-2 text-white/85" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>
           {Math.abs(feelsDiff) < 1
             ? T.t("feelsSame")
             : feelsDiff > 0
@@ -136,8 +142,8 @@ export function WeatherCards({
 
       {/* 风 */}
       <Card title={T.t("wind")} icon={<Wind className="h-4 w-4" />} span={2}>
-        <div className="flex items-center gap-4">
-          <div className="min-w-0 flex-1 text-sm">
+        <div className="flex items-center gap-[4cqw]">
+          <div className="min-w-0 flex-1" style={{ fontSize: "clamp(11px, 3.2cqw, 15px)" }}>
             <Row label={T.t("windSpeed")} value={`${cur.wind.speed.toFixed(1)} ${windUnit}`} />
             <Row label={T.t("gusts")} value={`${Math.round(cur.wind.speed * 1.4)} ${windUnit}`} />
             <Row
@@ -156,9 +162,9 @@ export function WeatherCards({
           <div className="flex items-end justify-between gap-3">
             <div>
               <Big>{air.aqi}</Big>
-              <p className="mt-1 text-sm text-white/85">{T.aqi(air.aqi)}</p>
+              <p className="mt-1 text-white/85" style={{ fontSize: "clamp(11px, 3cqw, 15px)" }}>{T.aqi(air.aqi)}</p>
             </div>
-            <p className="text-xs text-white/70">
+            <p className="text-white/70" style={{ fontSize: "clamp(10px, 2.6cqw, 13px)" }}>
               PM2.5 {air.pm2_5.toFixed(0)} · PM10 {air.pm10.toFixed(0)} · O₃ {air.o3.toFixed(0)}
             </p>
           </div>
@@ -178,7 +184,7 @@ export function WeatherCards({
       <Card title={T.t("sunset")} icon={<SunsetIcon className="h-4 w-4" />}>
         <Big>{formatTimeL(cur.sys.sunset, tz)}</Big>
         <SunArc progress={sunProgress} />
-        <p className="mt-auto pt-2 text-xs text-white/80">
+        <p className="mt-auto pt-2 text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>
           {T.t("sunriseAt")}{formatTimeL(cur.sys.sunrise, tz)}
         </p>
       </Card>
@@ -189,19 +195,19 @@ export function WeatherCards({
         <div className="mt-3 h-1.5 rounded-full bg-white/20">
           <div className="h-full rounded-full bg-sky-300" style={{ width: `${Math.round(pop * 100)}%` }} />
         </div>
-        <p className="mt-auto pt-2 text-xs text-white/80">{T.t("humidity")} {cur.main.humidity}%</p>
+        <p className="mt-auto pt-2 text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>{T.t("humidity")} {cur.main.humidity}%</p>
       </Card>
 
       {/* 能见度 */}
       <Card title={T.t("visibility")} icon={<Eye className="h-4 w-4" />}>
         <Big>{(cur.visibility / 1000).toFixed(1)} {lang === "zh" ? "公里" : "km"}</Big>
-        <p className="mt-auto pt-2 text-xs text-white/80">{T.t("cloudiness")} {cur.clouds.all}%</p>
+        <p className="mt-auto pt-2 text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>{T.t("cloudiness")} {cur.clouds.all}%</p>
       </Card>
 
       {/* 湿度 */}
       <Card title={T.t("humidity")} icon={<Droplets className="h-4 w-4" />}>
         <Big>{cur.main.humidity}%</Big>
-        <p className="mt-auto pt-2 text-xs text-white/80">
+        <p className="mt-auto pt-2 text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>
           {T.t("feelsLike")} {Math.round(cur.main.feels_like)}°
         </p>
       </Card>
@@ -209,7 +215,7 @@ export function WeatherCards({
       {/* 气压 */}
       <Card title={T.t("pressure")} icon={<Gauge className="h-4 w-4" />}>
         <Big>{cur.main.pressure}</Big>
-        <p className="mt-auto pt-2 text-xs text-white/80">hPa</p>
+        <p className="mt-auto pt-2 text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>hPa</p>
       </Card>
 
       {/* 云量 */}
@@ -218,7 +224,7 @@ export function WeatherCards({
         <div className="mt-3 h-1.5 rounded-full bg-white/20">
           <div className="h-full rounded-full bg-white/70" style={{ width: `${cur.clouds.all}%` }} />
         </div>
-        <p className="mt-auto pt-2 text-xs capitalize text-white/80">{cur.weather[0].description}</p>
+        <p className="mt-auto pt-2 capitalize text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>{cur.weather[0].description}</p>
       </Card>
     </section>
   );
