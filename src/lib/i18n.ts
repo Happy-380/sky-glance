@@ -61,6 +61,10 @@ const D: Dict = {
   sunsetAt: { zh: "日落：", en: "Sunset: " },
   noSaved: { zh: "还没有城市，搜索并添加。", en: "No cities yet — search to add one." },
   highlights: { zh: "重点", en: "Highlights" },
+  modeWeather: { zh: "天气", en: "Weather" },
+  modePrecip: { zh: "降水", en: "Precipitation" },
+  modeWind: { zh: "风", en: "Wind" },
+  conditions: { zh: "天气状况", en: "Conditions" },
 
 };
 

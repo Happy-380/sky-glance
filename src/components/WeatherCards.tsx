@@ -13,13 +13,13 @@ function Card({
 }: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
   return (
     <div
-      className={`@container flex min-h-0 min-w-0 self-start flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 backdrop-blur-xl p-[6cqw] ${
-        span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
+      className={`@container flex min-h-0 min-w-0 self-start flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 backdrop-blur-xl ${
+        span === 2 ? "col-span-2 aspect-[2/1] p-[3cqw]" : "aspect-square p-[6cqw]"
       }`}
     >
       <div
         className="mb-[3cqw] flex items-center gap-1.5 font-medium text-white/70"
-        style={{ fontSize: "clamp(11px, 6.5cqw, 15px)" }}
+        style={{ fontSize: span === 2 ? "clamp(11px, 3.2cqw, 15px)" : "clamp(11px, 6.5cqw, 15px)" }}
       >
         {icon}
         <span className="truncate">{title}</span>
@@ -33,7 +33,7 @@ function Big({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="truncate font-light leading-none"
-      style={{ fontSize: "clamp(22px, 15cqw, 40px)" }}
+      style={{ fontSize: "clamp(22px, min(15cqw, 40px), 40px)" }}
     >
       {children}
     </div>
