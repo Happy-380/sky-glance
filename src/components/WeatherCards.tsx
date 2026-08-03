@@ -23,25 +23,28 @@ function Card({
   return (
     <div
       style={{ containerType: "size" }}
-      className={`flex min-h-0 min-w-0 self-start flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-[6cqh] backdrop-blur-xl ${
+      className={`min-h-0 min-w-0 self-start overflow-hidden rounded-3xl border border-white/15 bg-white/10 backdrop-blur-xl ${
         span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
       }`}
     >
-      <div
-        className="mb-[4cqh] flex items-center gap-1.5 font-medium text-white/70"
-        style={{ fontSize: FS.label }}
-      >
-        <span className="flex shrink-0 items-center" style={{ width: "1em", height: "1em" }}>
-          {icon}
-        </span>
-        <span className="truncate">{title}</span>
-      </div>
-      <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${span === 2 ? "justify-center gap-[3cqh]" : ""}`}>
-        {children}
+      <div className="flex h-full w-full min-h-0 min-w-0 flex-col p-[6cqh]">
+        <div
+          className="mb-[4cqh] flex items-center gap-1.5 font-medium text-white/70"
+          style={{ fontSize: FS.label }}
+        >
+          <span className="flex shrink-0 items-center" style={{ width: "1em", height: "1em" }}>
+            {icon}
+          </span>
+          <span className="truncate">{title}</span>
+        </div>
+        <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${span === 2 ? "justify-center gap-[3cqh]" : ""}`}>
+          {children}
+        </div>
       </div>
     </div>
   );
 }
+
 
 function Big({ children }: { children: React.ReactNode }) {
   return (
