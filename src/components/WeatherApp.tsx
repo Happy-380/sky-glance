@@ -325,11 +325,14 @@ export function WeatherApp() {
                             )}
                             {mode === "wind" && (
                               <>
+                                <div className="flex h-11 w-9 flex-col items-center justify-center rounded-lg border border-white/15 bg-white/15">
+                                  <span className="text-sm font-semibold leading-none">{Math.round(h.wind)}</span>
+                                  <span className="mt-0.5 text-[9px] leading-none text-white/70">{windUnit}</span>
+                                </div>
                                 <Navigation
-                                  className="h-8 w-8 text-white/85"
+                                  className="h-3.5 w-3.5 text-white/70"
                                   style={{ transform: `rotate(${h.windDeg + 180}deg)` }}
                                 />
-                                <span className="text-sm font-medium">{Math.round(h.wind)}</span>
                               </>
                             )}
                             {isSunset && <span className="text-[10px] text-amber-200">{T.t("sunset")}</span>}
