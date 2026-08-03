@@ -38,6 +38,7 @@ export function WeatherApp() {
   const activeId = useActiveId();
   const units = useUnits();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("weather");
   const menuRef = useRef<HTMLDivElement>(null);
 
