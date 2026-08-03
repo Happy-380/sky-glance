@@ -22,7 +22,8 @@ function Card({
 }: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
   return (
     <div
-      className={`@container flex min-h-0 min-w-0 self-start flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-[6cqh] backdrop-blur-xl ${
+      style={{ containerType: "size" }}
+      className={`flex min-h-0 min-w-0 self-start flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-[6cqh] backdrop-blur-xl ${
         span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
       }`}
     >
