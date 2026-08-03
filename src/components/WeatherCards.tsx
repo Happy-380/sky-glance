@@ -32,7 +32,7 @@ function Card({
           className="mb-[4cqh] flex items-center gap-1.5 font-medium text-white/70"
           style={{ fontSize: FS.label }}
         >
-          <span className="flex shrink-0 items-center" style={{ width: "1em", height: "1em" }}>
+          <span className="flex shrink-0 items-center [&>span>svg]:h-[1.15em] [&>span>svg]:w-[1.15em]">
             {icon}
           </span>
           <span className="truncate">{title}</span>
@@ -55,7 +55,7 @@ function Big({ children }: { children: React.ReactNode }) {
 }
 
 function Icon({ children }: { children: React.ReactNode }) {
-  return <span className="h-full w-full [&>svg]:h-full [&>svg]:w-full">{children}</span>;
+  return <span className="flex items-center">{children}</span>;
 }
 
 function WindDial({ deg, value }: { deg: number; value: string }) {
