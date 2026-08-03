@@ -17,6 +17,7 @@ import {
 import { detectLang, makeT, formatHourL, formatDayL, formatTimeL, isNightAt } from "@/lib/i18n";
 import { weatherGradient } from "@/lib/gradient";
 import { WeatherCards } from "@/components/WeatherCards";
+import { CityListPanel } from "@/components/CityList";
 import { buildHighlights } from "@/lib/highlights";
 
 const DEFAULT: SavedLocation = {
@@ -38,6 +39,7 @@ export function WeatherApp() {
   const activeId = useActiveId();
   const units = useUnits();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("weather");
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -166,17 +168,38 @@ export function WeatherApp() {
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden text-white" style={{ background: bg }}>
+      {/* Wide-screen city list drawer */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 hidden lg:block">
+          <button
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setDrawerOpen(false)}
+            aria-label={T.t("back")}
+          />
+          <aside className="absolute inset-y-0 left-0 flex w-[380px] max-w-[85vw] flex-col overflow-hidden border-r border-white/15 bg-black/45 p-4 text-white backdrop-blur-2xl shadow-2xl">
+            <CityListPanel embedded onClose={() => setDrawerOpen(false)} />
+          </aside>
+        </div>
+      )}
       <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-2xl flex-col px-4 pb-10 pt-3 md:px-6 lg:max-w-6xl">
+
 
         {/* Top bar */}
         <header className="flex items-center justify-between">
           <Link
             to="/cities"
-            className="rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl"
+            className="rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl lg:hidden"
             aria-label={T.t("cityList")}
           >
             <List className="h-4 w-4" />
           </Link>
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="hidden rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl lg:block"
+            aria-label={T.t("cityList")}
+          >
+            <List className="h-4 w-4" />
+          </button>
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
@@ -325,11 +348,14 @@ export function WeatherApp() {
                             )}
                             {mode === "wind" && (
                               <>
+                                <div className="flex h-11 w-9 flex-col items-center justify-center rounded-lg border border-white/15 bg-white/15">
+                                  <span className="text-sm font-semibold leading-none">{Math.round(h.wind)}</span>
+                                  <span className="mt-0.5 text-[9px] leading-none text-white/70">{windUnit}</span>
+                                </div>
                                 <Navigation
-                                  className="h-8 w-8 text-white/85"
+                                  className="h-3.5 w-3.5 text-white/70"
                                   style={{ transform: `rotate(${h.windDeg + 180}deg)` }}
                                 />
-                                <span className="text-sm font-medium">{Math.round(h.wind)}</span>
                               </>
                             )}
                             {isSunset && <span className="text-[10px] text-amber-200">{T.t("sunset")}</span>}
