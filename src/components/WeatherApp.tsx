@@ -17,6 +17,7 @@ import {
 import { detectLang, makeT, formatHourL, formatDayL, formatTimeL, isNightAt } from "@/lib/i18n";
 import { weatherGradient } from "@/lib/gradient";
 import { WeatherCards } from "@/components/WeatherCards";
+import { CityListPanel } from "@/components/CityList";
 import { buildHighlights } from "@/lib/highlights";
 
 const DEFAULT: SavedLocation = {
