@@ -8,42 +8,55 @@ import { formatTimeL } from "@/lib/i18n";
 
 type T = ReturnType<typeof import("@/lib/i18n").makeT>;
 
+/* Container-query sizes are expressed in cqh so 1×1 and 2×1 tiles scale
+   identically (a 2×1 tile is half as tall as it is wide). */
+const FS = {
+  label: "clamp(11px, 7.5cqh, 18px)",
+  big: "clamp(22px, 24cqh, 56px)",
+  body: "clamp(10px, 6.5cqh, 16px)",
+  tiny: "clamp(9px, 5.5cqh, 14px)",
+};
+
 function Card({
   title, icon, span = 1, children,
 }: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
   return (
     <div
-      className={`@container flex min-h-0 min-w-0 self-start flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 backdrop-blur-xl ${
-        span === 2 ? "col-span-2 aspect-[2/1] p-[3cqw]" : "aspect-square p-[6cqw]"
+      className={`@container flex min-h-0 min-w-0 self-start flex-col overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-[6cqh] backdrop-blur-xl ${
+        span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
       }`}
     >
       <div
-        className="mb-[3cqw] flex items-center gap-1.5 font-medium text-white/70"
-        style={{ fontSize: span === 2 ? "clamp(11px, 3.2cqw, 15px)" : "clamp(11px, 6.5cqw, 15px)" }}
+        className="mb-[4cqh] flex items-center gap-1.5 font-medium text-white/70"
+        style={{ fontSize: FS.label }}
       >
-        {icon}
+        <span className="flex shrink-0 items-center" style={{ width: "1em", height: "1em" }}>
+          {icon}
+        </span>
         <span className="truncate">{title}</span>
       </div>
-      <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${span === 2 ? "justify-center gap-[2cqw]" : ""}`}>{children}</div>
+      <div className={`flex min-h-0 min-w-0 flex-1 flex-col ${span === 2 ? "justify-center gap-[3cqh]" : ""}`}>
+        {children}
+      </div>
     </div>
   );
 }
 
 function Big({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      className="truncate font-light leading-none"
-      style={{ fontSize: "clamp(22px, min(15cqw, 40px), 40px)" }}
-    >
+    <div className="truncate font-light leading-none" style={{ fontSize: FS.big }}>
       {children}
     </div>
   );
 }
 
+function Icon({ children }: { children: React.ReactNode }) {
+  return <span className="h-full w-full [&>svg]:h-full [&>svg]:w-full">{children}</span>;
+}
 
 function WindDial({ deg, value }: { deg: number; value: string }) {
   return (
-    <div className="relative aspect-square w-[34cqw] max-w-[130px] shrink-0">
+    <div className="relative aspect-square h-[74cqh] shrink-0">
       <svg viewBox="0 0 100 100" className="h-full w-full">
         {Array.from({ length: 60 }).map((_, i) => (
           <line
@@ -59,7 +72,10 @@ function WindDial({ deg, value }: { deg: number; value: string }) {
           <circle cx="50" cy="84" r="3.5" fill="white" />
         </g>
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center font-medium" style={{ fontSize: "clamp(14px, 7cqw, 24px)" }}>
+      <div
+        className="absolute inset-0 flex items-center justify-center font-medium"
+        style={{ fontSize: "clamp(13px, 16cqh, 30px)" }}
+      >
         {value}
       </div>
     </div>
@@ -71,7 +87,7 @@ function SunArc({ progress }: { progress: number }) {
   const x = 4 + p * 92;
   const y = 30 - Math.sin(p * Math.PI) * 22;
   return (
-    <svg viewBox="0 0 100 44" className="mt-2 h-12 w-full">
+    <svg viewBox="0 0 100 44" className="mt-[4cqh] h-[26cqh] w-full">
       <path d="M4 30 Q50 -10 96 30" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
       <line x1="0" y1="34" x2="100" y2="34" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
       <circle cx={x} cy={y} r="3.5" fill="white" />
@@ -103,35 +119,29 @@ export function WeatherCards({
   const aqiPct = air ? ((air.aqi - 1) / 4) * 100 : 0;
 
   return (
-    <section
-      className="mx-auto grid w-full max-w-[836px] grid-cols-2 items-start gap-3 md:grid-cols-4"
-    >
+    <section className="mx-auto grid w-full max-w-[836px] grid-cols-2 items-start gap-3 md:grid-cols-4">
       {/* 平均 */}
-      <Card title={T.t("average")} icon={<TrendingUp className="h-4 w-4" />}>
+      <Card title={T.t("average")} icon={<Icon><TrendingUp /></Icon>}>
         <Big>{diff >= 0 ? "+" : ""}{diff}°</Big>
-        <p className="mt-1.5 text-white/85" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>
+        <p className="mt-[3cqh] text-white/85" style={{ fontSize: FS.body }}>
           {diff >= 0 ? T.t("aboveAvgHigh") : T.t("belowAvgHigh")}
         </p>
-        <div className="mt-auto space-y-1 pt-3 text-white/70" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>
+        <div className="mt-auto space-y-[2cqh] pt-[4cqh] text-white/70" style={{ fontSize: FS.body }}>
           <div className="flex justify-between gap-2">
             <span>{T.t("todayLabel")}</span>
-            <span className="font-medium text-white">
-              {T.t("maxShort")} {todayHi}°
-            </span>
+            <span className="font-medium text-white">{T.t("maxShort")} {todayHi}°</span>
           </div>
           <div className="flex justify-between gap-2">
             <span>{T.t("avgLabel")}</span>
-            <span className="font-medium text-white">
-              {T.t("maxShort")} {Math.round(avgHigh)}°
-            </span>
+            <span className="font-medium text-white">{T.t("maxShort")} {Math.round(avgHigh)}°</span>
           </div>
         </div>
       </Card>
 
       {/* 体感温度 */}
-      <Card title={T.t("feelsLike")} icon={<Thermometer className="h-4 w-4" />}>
+      <Card title={T.t("feelsLike")} icon={<Icon><Thermometer /></Icon>}>
         <Big>{Math.round(cur.main.feels_like)}°</Big>
-        <p className="mt-auto pt-2 text-white/85" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>
+        <p className="mt-auto pt-[4cqh] text-white/85" style={{ fontSize: FS.body }}>
           {Math.abs(feelsDiff) < 1
             ? T.t("feelsSame")
             : feelsDiff > 0
@@ -141,9 +151,9 @@ export function WeatherCards({
       </Card>
 
       {/* 风 */}
-      <Card title={T.t("wind")} icon={<Wind className="h-4 w-4" />} span={2}>
-        <div className="flex items-center gap-[4cqw]">
-          <div className="min-w-0 flex-1" style={{ fontSize: "clamp(11px, 3.2cqw, 15px)" }}>
+      <Card title={T.t("wind")} icon={<Icon><Wind /></Icon>} span={2}>
+        <div className="flex items-center gap-[4cqh]">
+          <div className="min-w-0 flex-1" style={{ fontSize: FS.body }}>
             <Row label={T.t("windSpeed")} value={`${cur.wind.speed.toFixed(1)} ${windUnit}`} />
             <Row label={T.t("gusts")} value={`${Math.round(cur.wind.speed * 1.4)} ${windUnit}`} />
             <Row
@@ -158,22 +168,22 @@ export function WeatherCards({
 
       {/* 空气质量 */}
       {air && (
-        <Card title={T.t("airQuality")} icon={<span className="text-[10px] font-bold">AQI</span>} span={2}>
+        <Card title={T.t("airQuality")} icon={<span className="font-bold" style={{ fontSize: "0.75em" }}>AQI</span>} span={2}>
           <div className="flex items-end justify-between gap-3">
             <div>
               <Big>{air.aqi}</Big>
-              <p className="mt-1 text-white/85" style={{ fontSize: "clamp(11px, 3cqw, 15px)" }}>{T.aqi(air.aqi)}</p>
+              <p className="mt-[2cqh] text-white/85" style={{ fontSize: FS.body }}>{T.aqi(air.aqi)}</p>
             </div>
-            <p className="text-white/70" style={{ fontSize: "clamp(10px, 2.6cqw, 13px)" }}>
+            <p className="text-white/70" style={{ fontSize: FS.tiny }}>
               PM2.5 {air.pm2_5.toFixed(0)} · PM10 {air.pm10.toFixed(0)} · O₃ {air.o3.toFixed(0)}
             </p>
           </div>
           <div
-            className="relative mt-3 h-1.5 rounded-full"
+            className="relative mt-[4cqh] h-[3cqh] min-h-[5px] rounded-full"
             style={{ background: "linear-gradient(to right,#22c55e,#eab308,#f97316,#ef4444,#a855f7)" }}
           >
             <div
-              className="absolute top-1/2 h-3 w-3 rounded-full bg-white shadow"
+              className="absolute top-1/2 aspect-square h-[7cqh] min-h-[10px] rounded-full bg-white shadow"
               style={{ left: `${aqiPct}%`, transform: "translate(-50%,-50%)" }}
             />
           </div>
@@ -181,50 +191,56 @@ export function WeatherCards({
       )}
 
       {/* 日落 */}
-      <Card title={T.t("sunset")} icon={<SunsetIcon className="h-4 w-4" />}>
+      <Card title={T.t("sunset")} icon={<Icon><SunsetIcon /></Icon>}>
         <Big>{formatTimeL(cur.sys.sunset, tz)}</Big>
         <SunArc progress={sunProgress} />
-        <p className="mt-auto pt-2 text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>
+        <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>
           {T.t("sunriseAt")}{formatTimeL(cur.sys.sunrise, tz)}
         </p>
       </Card>
 
       {/* 降水概率 */}
-      <Card title={T.t("precip")} icon={<CloudRain className="h-4 w-4" />}>
+      <Card title={T.t("precip")} icon={<Icon><CloudRain /></Icon>}>
         <Big>{Math.round(pop * 100)}%</Big>
-        <div className="mt-3 h-1.5 rounded-full bg-white/20">
+        <div className="mt-[4cqh] h-[3cqh] min-h-[5px] rounded-full bg-white/20">
           <div className="h-full rounded-full bg-sky-300" style={{ width: `${Math.round(pop * 100)}%` }} />
         </div>
-        <p className="mt-auto pt-2 text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>{T.t("humidity")} {cur.main.humidity}%</p>
+        <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>
+          {T.t("humidity")} {cur.main.humidity}%
+        </p>
       </Card>
 
       {/* 能见度 */}
-      <Card title={T.t("visibility")} icon={<Eye className="h-4 w-4" />}>
+      <Card title={T.t("visibility")} icon={<Icon><Eye /></Icon>}>
         <Big>{(cur.visibility / 1000).toFixed(1)} {lang === "zh" ? "公里" : "km"}</Big>
-        <p className="mt-auto pt-2 text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>{T.t("cloudiness")} {cur.clouds.all}%</p>
+        <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>
+          {T.t("cloudiness")} {cur.clouds.all}%
+        </p>
       </Card>
 
       {/* 湿度 */}
-      <Card title={T.t("humidity")} icon={<Droplets className="h-4 w-4" />}>
+      <Card title={T.t("humidity")} icon={<Icon><Droplets /></Icon>}>
         <Big>{cur.main.humidity}%</Big>
-        <p className="mt-auto pt-2 text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>
+        <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>
           {T.t("feelsLike")} {Math.round(cur.main.feels_like)}°
         </p>
       </Card>
 
       {/* 气压 */}
-      <Card title={T.t("pressure")} icon={<Gauge className="h-4 w-4" />}>
+      <Card title={T.t("pressure")} icon={<Icon><Gauge /></Icon>}>
         <Big>{cur.main.pressure}</Big>
-        <p className="mt-auto pt-2 text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>hPa</p>
+        <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>hPa</p>
       </Card>
 
       {/* 云量 */}
-      <Card title={T.t("cloudiness")} icon={<Cloud className="h-4 w-4" />}>
+      <Card title={T.t("cloudiness")} icon={<Icon><Cloud /></Icon>}>
         <Big>{cur.clouds.all}%</Big>
-        <div className="mt-3 h-1.5 rounded-full bg-white/20">
+        <div className="mt-[4cqh] h-[3cqh] min-h-[5px] rounded-full bg-white/20">
           <div className="h-full rounded-full bg-white/70" style={{ width: `${cur.clouds.all}%` }} />
         </div>
-        <p className="mt-auto pt-2 capitalize text-white/80" style={{ fontSize: "clamp(10px, 5cqw, 14px)" }}>{cur.weather[0].description}</p>
+        <p className="mt-auto pt-[3cqh] capitalize text-white/80" style={{ fontSize: FS.body }}>
+          {cur.weather[0].description}
+        </p>
       </Card>
     </section>
   );
@@ -233,7 +249,7 @@ export function WeatherCards({
 function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
   return (
     <div
-      className={`flex items-center justify-between gap-2 py-2 ${
+      className={`flex items-center justify-between gap-2 py-[3cqh] ${
         last ? "" : "border-b border-white/15"
       }`}
     >
