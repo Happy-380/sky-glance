@@ -172,11 +172,18 @@ export function WeatherApp() {
         <header className="flex items-center justify-between">
           <Link
             to="/cities"
-            className="rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl"
+            className="rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl lg:hidden"
             aria-label={T.t("cityList")}
           >
             <List className="h-4 w-4" />
           </Link>
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="hidden rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl lg:block"
+            aria-label={T.t("cityList")}
+          >
+            <List className="h-4 w-4" />
+          </button>
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
