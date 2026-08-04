@@ -215,11 +215,15 @@ export function WeatherCards({
 
       {/* 能见度 */}
       <Card title={T.t("visibility")} icon={<Icon><Eye /></Icon>}>
-        <Big>{(cur.visibility / 1000).toFixed(1)} {lang === "zh" ? "公里" : "km"}</Big>
+        <Big>{(cur.visibility / 1000).toFixed(1)}</Big>
+        <div className="mt-[1cqh] text-white/70" style={{ fontSize: FS.tiny }}>
+          {lang === "zh" ? "公里" : "km"}
+        </div>
         <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>
           {T.t("cloudiness")} {cur.clouds.all}%
         </p>
       </Card>
+
 
       {/* 湿度 */}
       <Card title={T.t("humidity")} icon={<Icon><Droplets /></Icon>}>
