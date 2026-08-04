@@ -31,7 +31,7 @@ export interface CurrentWeather {
 
 export interface ForecastItem {
   dt: number;
-  main: { temp: number; temp_min: number; temp_max: number; humidity: number };
+  main: { temp: number; temp_min: number; temp_max: number; humidity: number; pressure?: number };
   weather: { id: number; main: string; description: string; icon: string }[];
   wind: { speed: number };
   pop: number;

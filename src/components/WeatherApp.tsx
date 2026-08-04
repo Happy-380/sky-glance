@@ -119,6 +119,13 @@ export function WeatherApp() {
     return list;
   }, [om.data, forecast.data, current.data, tz]);
 
+  const pressureTrend = (() => {
+    const a = hourly[0]?.pressure ?? 0;
+    const b = hourly[Math.min(3, hourly.length - 1)]?.pressure ?? 0;
+    if (!a || !b) return 0;
+    return b - a;
+  })();
+
   const windUnit = units === "metric" ? (lang === "zh" ? "米/秒" : "m/s") : "mph";
 
   const night = current.data
@@ -429,8 +436,9 @@ export function WeatherApp() {
                                   style={{ width: `${(wind / windMaxAll) * 100}%` }}
                                 />
                               </div>
-                              <span className="shrink-0 text-right text-white">
-                                {wind} <span className="text-xs text-white/60">{windUnit}</span>
+                              <span className="flex w-16 shrink-0 items-baseline justify-end gap-1 text-right text-white sm:w-20">
+                                {wind}
+                                <span className="text-xs text-white/60">{windUnit}</span>
                               </span>
                             </div>
                           )}
@@ -451,6 +459,7 @@ export function WeatherApp() {
                 units={units}
                 pop={hourly[0]?.pop ?? 0}
                 todayHi={todayHi}
+                pressureTrend={pressureTrend}
                 air={
                   air.data
                     ? {
