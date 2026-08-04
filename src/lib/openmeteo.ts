@@ -14,6 +14,7 @@ export interface OMHour {
   wind: number;
   gust: number;
   windDeg: number;
+  pressure: number;
   icon: string;
   description: string;
   code: number;
