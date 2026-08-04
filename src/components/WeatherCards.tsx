@@ -174,22 +174,24 @@ export function WeatherCards({
       {/* 空气质量 */}
       {air && (
         <Card title={T.t("airQuality")} icon={<span className="font-bold" style={{ fontSize: "0.75em" }}>AQI</span>} span={2}>
-          <div className="flex min-w-0 items-center gap-[4cqh]">
-            <Big>{air.aqi}</Big>
-            <span className="truncate text-white/85" style={{ fontSize: FS.body }}>{T.aqi(air.aqi)}</span>
-          </div>
-          <div
-            className="relative mt-[5cqh] h-[4cqh] min-h-[6px] rounded-full"
-            style={{ background: "linear-gradient(to right,#22c55e,#eab308,#f97316,#ef4444,#a855f7)" }}
-          >
+          <div className="flex h-full min-h-0 flex-col justify-center gap-[6cqh] px-[2cqh]">
+            <div className="flex min-w-0 items-baseline gap-[3cqh]">
+              <Big>{air.aqi}</Big>
+              <span className="truncate text-white/85" style={{ fontSize: FS.body }}>{T.aqi(air.aqi)}</span>
+            </div>
             <div
-              className="absolute top-1/2 aspect-square h-[9cqh] min-h-[10px] rounded-full bg-white shadow"
-              style={{ left: `calc(${aqiPct}% )`, transform: "translate(-50%,-50%)" }}
-            />
+              className="relative mx-[1cqh] h-[4cqh] min-h-[6px] rounded-full"
+              style={{ background: "linear-gradient(to right,#22c55e,#eab308,#f97316,#ef4444,#a855f7)" }}
+            >
+              <div
+                className="absolute top-1/2 aspect-square h-[9cqh] min-h-[10px] rounded-full bg-white shadow"
+                style={{ left: `${aqiPct}%`, transform: "translate(-50%,-50%)" }}
+              />
+            </div>
+            <p className="truncate text-white/70" style={{ fontSize: FS.tiny }}>
+              PM2.5 {air.pm2_5.toFixed(0)} · PM10 {air.pm10.toFixed(0)} · O₃ {air.o3.toFixed(0)}
+            </p>
           </div>
-          <p className="mt-[4cqh] truncate text-white/70" style={{ fontSize: FS.tiny }}>
-            PM2.5 {air.pm2_5.toFixed(0)} · PM10 {air.pm10.toFixed(0)} · O₃ {air.o3.toFixed(0)}
-          </p>
         </Card>
       )}
 
