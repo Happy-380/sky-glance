@@ -93,6 +93,7 @@ export function WeatherApp() {
       wind: i.wind.speed,
       gust: i.wind.speed * 1.4,
       windDeg: 0,
+      pressure: i.main.pressure ?? 0,
       icon: i.weather[0].icon,
       description: i.weather[0].description,
       code: i.weather[0].id,
