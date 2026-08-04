@@ -306,7 +306,7 @@ function PressureGauge({
             <><path d="M12 4v16" /><path d="M5 13l7 7 7-7" /></>
           )}
         </svg>
-        <div className="font-medium leading-none" style={{ fontSize: "clamp(14px, 16cqh, 34px)" }}>
+        <div className="font-medium leading-none" style={{ fontSize: "clamp(13px, 14cqh, 30px)" }}>
           {value.toLocaleString()}
         </div>
         <div className="text-white/85" style={{ fontSize: FS.tiny }}>{unit}</div>
