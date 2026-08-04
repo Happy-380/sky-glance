@@ -273,7 +273,7 @@ function PressureGauge({
   const MIN = 960;
   const MAX = 1060;
   const p = Math.min(Math.max((value - MIN) / (MAX - MIN), 0), 1);
-  const START = 150; // degrees, left end of the arc
+  const START = -120; // degrees from top; arc opens at the bottom
   const SWEEP = 240;
   const ticks = 41;
   const activeIdx = Math.round(p * (ticks - 1));
@@ -281,7 +281,7 @@ function PressureGauge({
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center">
-      <svg viewBox="0 0 100 100" className="h-[92cqh] max-h-full w-auto">
+      <svg viewBox="0 0 100 100" className="h-full w-full">
         {Array.from({ length: ticks }).map((_, i) => {
           const on = i === activeIdx;
           return (
@@ -291,13 +291,13 @@ function PressureGauge({
               stroke={on ? "white" : "rgba(255,255,255,0.35)"}
               strokeWidth={on ? "4" : "2"}
               strokeLinecap="round"
-              transform={`rotate(${START + (i / (ticks - 1)) * SWEEP + 180} 50 50)`}
+              transform={`rotate(${START + (i / (ticks - 1)) * SWEEP} 50 50)`}
             />
           );
         })}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <svg viewBox="0 0 24 24" className="h-[16cqh] w-[16cqh]" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" className="h-[13cqh] w-[13cqh]" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           {dir === "flat" ? (
             <><path d="M4 12h16" /><path d="M15 7l5 5-5 5" /></>
           ) : dir === "up" ? (
@@ -306,13 +306,13 @@ function PressureGauge({
             <><path d="M12 4v16" /><path d="M5 13l7 7 7-7" /></>
           )}
         </svg>
-        <div className="font-medium leading-none" style={{ fontSize: "clamp(16px, 19cqh, 40px)" }}>
+        <div className="font-medium leading-none" style={{ fontSize: "clamp(14px, 16cqh, 34px)" }}>
           {value.toLocaleString()}
         </div>
-        <div className="text-white/85" style={{ fontSize: FS.body }}>{unit}</div>
+        <div className="text-white/85" style={{ fontSize: FS.tiny }}>{unit}</div>
       </div>
       <div
-        className="absolute inset-x-[10%] bottom-[6cqh] flex justify-between text-white/80"
+        className="absolute inset-x-[16%] bottom-[2cqh] flex justify-between text-white/80"
         style={{ fontSize: FS.body }}
       >
         <span>{lowLabel}</span>
