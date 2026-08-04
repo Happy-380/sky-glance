@@ -100,7 +100,7 @@ function SunArc({ progress }: { progress: number }) {
 }
 
 export function WeatherCards({
-  cur, daily, T, lang, tz, units, air, pop, todayHi,
+  cur, daily, T, lang, tz, units, air, pop, todayHi, pressureTrend = 0,
 }: {
   cur: CurrentWeather;
   daily: DailySummary[];
@@ -111,6 +111,7 @@ export function WeatherCards({
   air?: { aqi: number; pm2_5: number; pm10: number; o3: number };
   pop: number;
   todayHi: number;
+  pressureTrend?: number;
 }) {
   const windUnit = units === "metric" ? (lang === "zh" ? "米/秒" : "m/s") : "mph";
   const avgHigh = daily.length
@@ -173,24 +174,22 @@ export function WeatherCards({
       {/* 空气质量 */}
       {air && (
         <Card title={T.t("airQuality")} icon={<span className="font-bold" style={{ fontSize: "0.75em" }}>AQI</span>} span={2}>
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <Big>{air.aqi}</Big>
-              <p className="mt-[2cqh] text-white/85" style={{ fontSize: FS.body }}>{T.aqi(air.aqi)}</p>
-            </div>
-            <p className="text-white/70" style={{ fontSize: FS.tiny }}>
-              PM2.5 {air.pm2_5.toFixed(0)} · PM10 {air.pm10.toFixed(0)} · O₃ {air.o3.toFixed(0)}
-            </p>
+          <div className="flex min-w-0 items-center gap-[4cqh]">
+            <Big>{air.aqi}</Big>
+            <span className="truncate text-white/85" style={{ fontSize: FS.body }}>{T.aqi(air.aqi)}</span>
           </div>
           <div
-            className="relative mt-[4cqh] h-[3cqh] min-h-[5px] rounded-full"
+            className="relative mt-[5cqh] h-[4cqh] min-h-[6px] rounded-full"
             style={{ background: "linear-gradient(to right,#22c55e,#eab308,#f97316,#ef4444,#a855f7)" }}
           >
             <div
-              className="absolute top-1/2 aspect-square h-[7cqh] min-h-[10px] rounded-full bg-white shadow"
-              style={{ left: `${aqiPct}%`, transform: "translate(-50%,-50%)" }}
+              className="absolute top-1/2 aspect-square h-[9cqh] min-h-[10px] rounded-full bg-white shadow"
+              style={{ left: `calc(${aqiPct}% )`, transform: "translate(-50%,-50%)" }}
             />
           </div>
+          <p className="mt-[4cqh] truncate text-white/70" style={{ fontSize: FS.tiny }}>
+            PM2.5 {air.pm2_5.toFixed(0)} · PM10 {air.pm10.toFixed(0)} · O₃ {air.o3.toFixed(0)}
+          </p>
         </Card>
       )}
 
@@ -232,8 +231,13 @@ export function WeatherCards({
 
       {/* 气压 */}
       <Card title={T.t("pressure")} icon={<Icon><Gauge /></Icon>}>
-        <Big>{cur.main.pressure}</Big>
-        <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>hPa</p>
+        <PressureGauge
+          value={cur.main.pressure}
+          trend={pressureTrend}
+          unit={lang === "zh" ? "百帕" : "hPa"}
+          lowLabel={T.t("pressLow")}
+          highLabel={T.t("pressHigh")}
+        />
       </Card>
 
       {/* 云量 */}
@@ -259,6 +263,61 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
     >
       <span className="text-white/75">{label}</span>
       <span className="truncate font-medium">{value}</span>
+    </div>
+  );
+}
+
+function PressureGauge({
+  value, trend, unit, lowLabel, highLabel,
+}: { value: number; trend: number; unit: string; lowLabel: string; highLabel: string }) {
+  const MIN = 960;
+  const MAX = 1060;
+  const p = Math.min(Math.max((value - MIN) / (MAX - MIN), 0), 1);
+  const START = -120; // degrees from top; arc opens at the bottom
+  const SWEEP = 240;
+  const ticks = 41;
+  const activeIdx = Math.round(p * (ticks - 1));
+  const dir = trend > 0.4 ? "up" : trend < -0.4 ? "down" : "flat";
+
+  return (
+    <div className="relative flex min-h-0 min-w-0 flex-1 items-center justify-center">
+      <svg viewBox="0 0 100 100" className="h-full w-full">
+        {Array.from({ length: ticks }).map((_, i) => {
+          const on = i === activeIdx;
+          return (
+            <line
+              key={i}
+              x1="50" y1="8" x2="50" y2={on ? "20" : "16"}
+              stroke={on ? "white" : "rgba(255,255,255,0.35)"}
+              strokeWidth={on ? "4" : "2"}
+              strokeLinecap="round"
+              transform={`rotate(${START + (i / (ticks - 1)) * SWEEP} 50 50)`}
+            />
+          );
+        })}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <svg viewBox="0 0 24 24" className="h-[13cqh] w-[13cqh]" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          {dir === "flat" ? (
+            <><path d="M4 12h16" /><path d="M15 7l5 5-5 5" /></>
+          ) : dir === "up" ? (
+            <><path d="M12 20V4" /><path d="M5 11l7-7 7 7" /></>
+          ) : (
+            <><path d="M12 4v16" /><path d="M5 13l7 7 7-7" /></>
+          )}
+        </svg>
+        <div className="font-medium leading-none" style={{ fontSize: "clamp(13px, 14cqh, 30px)" }}>
+          {value.toLocaleString()}
+        </div>
+        <div className="text-white/85" style={{ fontSize: FS.tiny }}>{unit}</div>
+      </div>
+      <div
+        className="absolute inset-x-[16%] bottom-[2cqh] flex justify-between text-white/80"
+        style={{ fontSize: FS.body }}
+      >
+        <span>{lowLabel}</span>
+        <span>{highLabel}</span>
+      </div>
     </div>
   );
 }

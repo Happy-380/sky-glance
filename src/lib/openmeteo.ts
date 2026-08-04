@@ -14,6 +14,7 @@ export interface OMHour {
   wind: number;
   gust: number;
   windDeg: number;
+  pressure: number;
   icon: string;
   description: string;
   code: number;
@@ -86,7 +87,7 @@ export async function getOpenMeteo(
   const windUnit = units === "metric" ? "ms" : "mph";
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-    `&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,is_day` +
+    `&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,is_day` +
     `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset` +
     `&forecast_days=10&timeformat=unixtime&timezone=auto` +
     `&temperature_unit=${tempUnit}&wind_speed_unit=${windUnit}`;
@@ -107,6 +108,7 @@ export async function getOpenMeteo(
       wind: h.wind_speed_10m[i] ?? 0,
       gust: h.wind_gusts_10m?.[i] ?? 0,
       windDeg: h.wind_direction_10m[i] ?? 0,
+      pressure: h.surface_pressure?.[i] ?? 0,
       code,
       ...info,
     };

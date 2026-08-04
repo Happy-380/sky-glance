@@ -65,6 +65,8 @@ const D: Dict = {
   modePrecip: { zh: "降水", en: "Precipitation" },
   modeWind: { zh: "风", en: "Wind" },
   conditions: { zh: "天气状况", en: "Conditions" },
+  pressLow: { zh: "低", en: "Low" },
+  pressHigh: { zh: "高", en: "High" },
 
 };
 
