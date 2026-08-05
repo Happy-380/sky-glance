@@ -19,6 +19,7 @@ import { weatherGradient } from "@/lib/gradient";
 import { WeatherCards } from "@/components/WeatherCards";
 import { CityListPanel } from "@/components/CityList";
 import { buildHighlights } from "@/lib/highlights";
+import { MetricDetail, type MetricKey } from "@/components/MetricDetail";
 
 const DEFAULT: SavedLocation = {
   id: makeId(40.7128, -74.006),
@@ -41,6 +42,7 @@ export function WeatherApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("weather");
+  const [detail, setDetail] = useState<MetricKey | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -466,6 +468,7 @@ export function WeatherApp() {
                 pop={hourly[0]?.pop ?? 0}
                 todayHi={todayHi}
                 pressureTrend={pressureTrend}
+                onOpen={setDetail}
                 air={
                   air.data
                     ? {
@@ -477,6 +480,30 @@ export function WeatherApp() {
                     : undefined
                 }
               />
+
+              {detail && (
+                <MetricDetail
+                  metric={detail}
+                  onClose={() => setDetail(null)}
+                  hours={om.data?.hourly ?? hourly}
+                  days={(om.data?.daily ?? []) as any}
+                  tz={tz}
+                  lang={lang}
+                  T={T}
+                  units={units}
+                  cur={current.data}
+                  air={
+                    air.data
+                      ? {
+                          aqi: air.data.list[0].main.aqi,
+                          pm2_5: air.data.list[0].components.pm2_5,
+                          pm10: air.data.list[0].components.pm10,
+                          o3: air.data.list[0].components.o3,
+                        }
+                      : undefined
+                  }
+                />
+              )}
 
               <footer className="pt-2 text-center text-xs text-white/60">
                 {T.t("dataFrom")} · {T.t("updated")} {formatTimeL(current.data.dt, tz)}
