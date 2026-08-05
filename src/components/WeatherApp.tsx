@@ -88,7 +88,7 @@ export function WeatherApp() {
     return (forecast.data?.list ?? []).slice(0, 10).map((i) => ({
       dt: i.dt,
       temp: i.main.temp,
-      feels: i.main.feels_like,
+      feels: i.main.temp,
       pop: i.pop ?? 0,
       precip: 0,
       wind: i.wind.speed,
