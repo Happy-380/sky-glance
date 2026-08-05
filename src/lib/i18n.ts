@@ -77,7 +77,7 @@ const D: Dict = {
   precipTotal: { zh: "降水总量", en: "Precipitation Amount" },
   precipChanceToday: { zh: "今日概率：", en: "Chance today: " },
   fullDayTotal: { zh: "全天降水总量", en: "Total for the day" },
-  next24: { zh: "未来 24 小时", en: "Next 24 hours" },
+  nextDay: { zh: "未来 24 小时", en: "Next 24 hours" },
   rain: { zh: "降雨", en: "Rain" },
   mm: { zh: "毫米", en: "mm" },
   km: { zh: "公里", en: "km" },
