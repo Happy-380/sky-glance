@@ -140,6 +140,7 @@ export async function getOpenMeteo(
       precip: dd.precipitation_sum?.[i] ?? 0,
       windMax: dd.wind_speed_10m_max?.[i] ?? 0,
       windDeg: dd.wind_direction_10m_dominant?.[i] ?? 0,
+      uvMax: dd.uv_index_max?.[i] ?? 0,
       sunrise: dd.sunrise?.[i] ?? 0,
       sunset: dd.sunset?.[i] ?? 0,
       code,
