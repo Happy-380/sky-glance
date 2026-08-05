@@ -33,6 +33,7 @@ export interface OMDay {
   pop: number;
   precip: number;
   windMax: number;
+  uvMax?: number;
   windDeg: number;
   icon: string;
   description: string;
