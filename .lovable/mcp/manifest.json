@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "sdk_version": "0.26.1",
+  "path": "/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "sky-glance",
+      "version": "0.1.0",
+      "title": "Sky Glance"
+    },
+    "tools": [
+      {
+        "name": "search_city",
+        "title": "Search city",
+        "description": "Search for cities by name and return their coordinates, country and state. Use the returned lat/lon with the forecast tools.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 1,
+              "description": "City name, e.g. 'Hangzhou' or '杭州'."
+            },
+            "limit": {
+              "description": "Max results, default 5.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": [
+            "query"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_current_weather",
+        "title": "Current weather",
+        "description": "Get current conditions (temperature, feels-like, wind, humidity, pressure, visibility, sunrise/sunset) and air quality for a latitude/longitude.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "lat": {
+              "type": "number",
+              "description": "Latitude."
+            },
+            "lon": {
+              "type": "number",
+              "description": "Longitude."
+            },
+            "lang": {
+              "description": "Language for the weather description, default en.",
+              "type": "string",
+              "enum": [
+                "en",
+                "zh"
+              ]
+            }
+          },
+          "required": [
+            "lat",
+            "lon"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_forecast",
+        "title": "Weather forecast",
+        "description": "Get the hourly (up to 48 hours) and daily (up to 10 days) forecast for a latitude/longitude, including temperature, precipitation probability and wind.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "lat": {
+              "type": "number",
+              "description": "Latitude."
+            },
+            "lon": {
+              "type": "number",
+              "description": "Longitude."
+            },
+            "hours": {
+              "description": "Hourly steps to return, default 24.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 48
+            },
+            "days": {
+              "description": "Days to return, default 10.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            }
+          },
+          "required": [
+            "lat",
+            "lon"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
