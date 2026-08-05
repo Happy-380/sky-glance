@@ -537,3 +537,12 @@ function SunRow({ label, value }: { label: string; value: string }) {
 }
 
 export { HOUR };
+
+function Summary({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="mt-5">
+      <h4 className="mb-2 text-base font-semibold">{title}</h4>
+      <p className="rounded-2xl bg-white/10 p-3 text-sm leading-relaxed text-white/85">{text}</p>
+    </div>
+  );
+}
