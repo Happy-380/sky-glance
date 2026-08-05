@@ -9,12 +9,18 @@
 export interface OMHour {
   dt: number;
   temp: number;
+  feels: number;
   pop: number; // 0..1
   precip: number; // mm
   wind: number;
   gust: number;
   windDeg: number;
   pressure: number;
+  humidity: number;
+  visibility: number; // meters
+  uv: number;
+  clouds: number;
+  isDay: boolean;
   icon: string;
   description: string;
   code: number;
@@ -27,6 +33,7 @@ export interface OMDay {
   pop: number;
   precip: number;
   windMax: number;
+  uvMax?: number;
   windDeg: number;
   icon: string;
   description: string;
@@ -87,8 +94,8 @@ export async function getOpenMeteo(
   const windUnit = units === "metric" ? "ms" : "mph";
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-    `&hourly=temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,is_day` +
-    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,sunrise,sunset` +
+    `&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,visibility,uv_index,cloud_cover,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,is_day` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,wind_speed_10m_max,wind_direction_10m_dominant,uv_index_max,sunrise,sunset` +
     `&forecast_days=10&timeformat=unixtime&timezone=auto` +
     `&temperature_unit=${tempUnit}&wind_speed_unit=${windUnit}`;
 
@@ -99,16 +106,23 @@ export async function getOpenMeteo(
   const h = d.hourly;
   const hourly: OMHour[] = h.time.map((t: number, i: number) => {
     const code = h.weather_code[i] ?? 3;
-    const info = wmoInfo(code, h.is_day[i] === 0, lang);
+    const isDay = h.is_day[i] !== 0;
+    const info = wmoInfo(code, !isDay, lang);
     return {
       dt: t,
       temp: h.temperature_2m[i] ?? 0,
+      feels: h.apparent_temperature?.[i] ?? h.temperature_2m[i] ?? 0,
       pop: (h.precipitation_probability?.[i] ?? 0) / 100,
       precip: h.precipitation?.[i] ?? 0,
       wind: h.wind_speed_10m[i] ?? 0,
       gust: h.wind_gusts_10m?.[i] ?? 0,
       windDeg: h.wind_direction_10m[i] ?? 0,
       pressure: h.surface_pressure?.[i] ?? 0,
+      humidity: h.relative_humidity_2m?.[i] ?? 0,
+      visibility: h.visibility?.[i] ?? 0,
+      uv: h.uv_index?.[i] ?? 0,
+      clouds: h.cloud_cover?.[i] ?? 0,
+      isDay,
       code,
       ...info,
     };
@@ -126,6 +140,7 @@ export async function getOpenMeteo(
       precip: dd.precipitation_sum?.[i] ?? 0,
       windMax: dd.wind_speed_10m_max?.[i] ?? 0,
       windDeg: dd.wind_direction_10m_dominant?.[i] ?? 0,
+      uvMax: dd.uv_index_max?.[i] ?? 0,
       sunrise: dd.sunrise?.[i] ?? 0,
       sunset: dd.sunset?.[i] ?? 0,
       code,

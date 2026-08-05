@@ -5,6 +5,7 @@ import {
 import type { CurrentWeather, DailySummary } from "@/lib/weather";
 import { degToCompass } from "@/lib/weather";
 import { formatTimeL } from "@/lib/i18n";
+import type { MetricKey } from "@/components/MetricDetail";
 
 type T = ReturnType<typeof import("@/lib/i18n").makeT>;
 
@@ -18,14 +19,18 @@ const FS = {
 };
 
 function Card({
-  title, icon, span = 1, children,
-}: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
+  title, icon, span = 1, onClick, children,
+}: { title: string; icon: React.ReactNode; span?: 1 | 2; onClick?: () => void; children: React.ReactNode }) {
   return (
     <div
       style={{ containerType: "size" }}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
       className={`min-h-0 min-w-0 self-start overflow-hidden rounded-3xl border border-white/15 bg-white/10 backdrop-blur-xl ${
-        span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
-      }`}
+        onClick ? "cursor-pointer transition hover:bg-white/15 active:scale-[0.98]" : ""
+      } ${span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"}`}
     >
       <div className="flex h-full w-full min-h-0 min-w-0 flex-col p-[6cqh]">
         <div
@@ -100,8 +105,9 @@ function SunArc({ progress }: { progress: number }) {
 }
 
 export function WeatherCards({
-  cur, daily, T, lang, tz, units, air, pop, todayHi, pressureTrend = 0,
+  cur, daily, T, lang, tz, units, air, pop, todayHi, pressureTrend = 0, onOpen,
 }: {
+  onOpen?: (m: MetricKey) => void;
   cur: CurrentWeather;
   daily: DailySummary[];
   T: T;
@@ -126,7 +132,7 @@ export function WeatherCards({
   return (
     <section className="mx-auto grid w-full max-w-[836px] grid-cols-2 items-start gap-3 md:grid-cols-4">
       {/* 平均 */}
-      <Card title={T.t("average")} icon={<Icon><TrendingUp /></Icon>}>
+      <Card onClick={() => onOpen?.("conditions")} title={T.t("average")} icon={<Icon><TrendingUp /></Icon>}>
         <Big>{diff >= 0 ? "+" : ""}{diff}°</Big>
         <p className="mt-[3cqh] text-white/85" style={{ fontSize: FS.body }}>
           {diff >= 0 ? T.t("aboveAvgHigh") : T.t("belowAvgHigh")}
@@ -144,7 +150,7 @@ export function WeatherCards({
       </Card>
 
       {/* 体感温度 */}
-      <Card title={T.t("feelsLike")} icon={<Icon><Thermometer /></Icon>}>
+      <Card onClick={() => onOpen?.("conditions")} title={T.t("feelsLike")} icon={<Icon><Thermometer /></Icon>}>
         <Big>{Math.round(cur.main.feels_like)}°</Big>
         <p className="mt-auto pt-[4cqh] text-white/85" style={{ fontSize: FS.body }}>
           {Math.abs(feelsDiff) < 1
@@ -156,7 +162,7 @@ export function WeatherCards({
       </Card>
 
       {/* 风 */}
-      <Card title={T.t("wind")} icon={<Icon><Wind /></Icon>} span={2}>
+      <Card onClick={() => onOpen?.("wind")} title={T.t("wind")} icon={<Icon><Wind /></Icon>} span={2}>
         <div className="flex items-center gap-[4cqh]">
           <div className="min-w-0 flex-1" style={{ fontSize: FS.body }}>
             <Row label={T.t("windSpeed")} value={`${cur.wind.speed.toFixed(1)} ${windUnit}`} />
@@ -173,7 +179,7 @@ export function WeatherCards({
 
       {/* 空气质量 */}
       {air && (
-        <Card title={T.t("airQuality")} icon={<span className="font-bold" style={{ fontSize: "0.75em" }}>AQI</span>} span={2}>
+        <Card onClick={() => onOpen?.("aqi")} title={T.t("airQuality")} icon={<span className="font-bold" style={{ fontSize: "0.75em" }}>AQI</span>} span={2}>
           <div className="flex h-full min-h-0 flex-col justify-center gap-[6cqh] px-[2cqh]">
             <div className="flex min-w-0 items-baseline gap-[3cqh]">
               <Big>{air.aqi}</Big>
@@ -196,7 +202,7 @@ export function WeatherCards({
       )}
 
       {/* 日落 */}
-      <Card title={T.t("sunset")} icon={<Icon><SunsetIcon /></Icon>}>
+      <Card onClick={() => onOpen?.("sun")} title={T.t("sunset")} icon={<Icon><SunsetIcon /></Icon>}>
         <Big>{formatTimeL(cur.sys.sunset, tz)}</Big>
         <SunArc progress={sunProgress} />
         <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>
@@ -205,7 +211,7 @@ export function WeatherCards({
       </Card>
 
       {/* 降水概率 */}
-      <Card title={T.t("precip")} icon={<Icon><CloudRain /></Icon>}>
+      <Card onClick={() => onOpen?.("precip")} title={T.t("precip")} icon={<Icon><CloudRain /></Icon>}>
         <Big>{Math.round(pop * 100)}%</Big>
         <div className="mt-[4cqh] h-[3cqh] min-h-[5px] rounded-full bg-white/20">
           <div className="h-full rounded-full bg-sky-300" style={{ width: `${Math.round(pop * 100)}%` }} />
@@ -216,7 +222,7 @@ export function WeatherCards({
       </Card>
 
       {/* 能见度 */}
-      <Card title={T.t("visibility")} icon={<Icon><Eye /></Icon>}>
+      <Card onClick={() => onOpen?.("visibility")} title={T.t("visibility")} icon={<Icon><Eye /></Icon>}>
         <Big>{(cur.visibility / 1000).toFixed(1)}</Big>
         <div className="mt-[1cqh] text-white/70" style={{ fontSize: FS.tiny }}>
           {lang === "zh" ? "公里" : "km"}
@@ -228,7 +234,7 @@ export function WeatherCards({
 
 
       {/* 湿度 */}
-      <Card title={T.t("humidity")} icon={<Icon><Droplets /></Icon>}>
+      <Card onClick={() => onOpen?.("humidity")} title={T.t("humidity")} icon={<Icon><Droplets /></Icon>}>
         <Big>{cur.main.humidity}%</Big>
         <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>
           {T.t("feelsLike")} {Math.round(cur.main.feels_like)}°
@@ -236,7 +242,7 @@ export function WeatherCards({
       </Card>
 
       {/* 气压 */}
-      <Card title={T.t("pressure")} icon={<Icon><Gauge /></Icon>}>
+      <Card onClick={() => onOpen?.("pressure")} title={T.t("pressure")} icon={<Icon><Gauge /></Icon>}>
         <PressureGauge
           value={cur.main.pressure}
           trend={pressureTrend}
@@ -247,7 +253,7 @@ export function WeatherCards({
       </Card>
 
       {/* 云量 */}
-      <Card title={T.t("cloudiness")} icon={<Icon><Cloud /></Icon>}>
+      <Card onClick={() => onOpen?.("conditions")} title={T.t("cloudiness")} icon={<Icon><Cloud /></Icon>}>
         <Big>{cur.clouds.all}%</Big>
         <div className="mt-[4cqh] h-[3cqh] min-h-[5px] rounded-full bg-white/20">
           <div className="h-full rounded-full bg-white/70" style={{ width: `${cur.clouds.all}%` }} />
