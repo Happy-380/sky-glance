@@ -486,7 +486,7 @@ export function WeatherApp() {
                   metric={detail}
                   onClose={() => setDetail(null)}
                   hours={om.data?.hourly ?? hourly}
-                  days={(om.data?.daily ?? []) as any}
+                  days={(om.data?.daily ?? daily) as any}
                   tz={tz}
                   lang={lang}
                   T={T}
