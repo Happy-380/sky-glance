@@ -9,12 +9,18 @@
 export interface OMHour {
   dt: number;
   temp: number;
+  feels: number;
   pop: number; // 0..1
   precip: number; // mm
   wind: number;
   gust: number;
   windDeg: number;
   pressure: number;
+  humidity: number;
+  visibility: number; // meters
+  uv: number;
+  clouds: number;
+  isDay: boolean;
   icon: string;
   description: string;
   code: number;
