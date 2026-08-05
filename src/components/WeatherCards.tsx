@@ -18,14 +18,18 @@ const FS = {
 };
 
 function Card({
-  title, icon, span = 1, children,
-}: { title: string; icon: React.ReactNode; span?: 1 | 2; children: React.ReactNode }) {
+  title, icon, span = 1, onClick, children,
+}: { title: string; icon: React.ReactNode; span?: 1 | 2; onClick?: () => void; children: React.ReactNode }) {
   return (
     <div
       style={{ containerType: "size" }}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
       className={`min-h-0 min-w-0 self-start overflow-hidden rounded-3xl border border-white/15 bg-white/10 backdrop-blur-xl ${
-        span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"
-      }`}
+        onClick ? "cursor-pointer transition hover:bg-white/15 active:scale-[0.98]" : ""
+      } ${span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"}`}
     >
       <div className="flex h-full w-full min-h-0 min-w-0 flex-col p-[6cqh]">
         <div
