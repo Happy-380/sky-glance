@@ -59,6 +59,21 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-detail-foreground: var(--detail-foreground);
+  --color-detail-muted: var(--detail-muted);
+  --color-detail-panel: var(--detail-panel);
+  --color-detail-menu: var(--detail-menu);
+  --color-detail-surface: var(--detail-surface);
+  --color-detail-control: var(--detail-control);
+  --color-detail-control-hover: var(--detail-control-hover);
+  --color-detail-line: var(--detail-line);
+  --color-detail-selected: var(--detail-selected);
+  --color-detail-selected-foreground: var(--detail-selected-foreground);
+  --color-detail-selected-muted: var(--detail-selected-muted);
+  --color-detail-overlay: var(--detail-overlay);
+  --color-detail-bar: var(--detail-bar);
+  --color-detail-bar-muted: var(--detail-bar-muted);
+  --color-detail-bar-foreground: var(--detail-bar-foreground);
 }
 
 :root {
@@ -95,6 +110,84 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --detail-foreground: oklch(0.98 0.004 250);
+  --detail-muted: oklch(0.72 0.012 250);
+  --detail-panel: oklch(0.15 0.008 250 / 94%);
+  --detail-menu: oklch(0.17 0.008 250 / 98%);
+  --detail-surface: oklch(0.25 0.01 250 / 82%);
+  --detail-control: oklch(0.32 0.008 250 / 72%);
+  --detail-control-hover: oklch(0.4 0.008 250 / 78%);
+  --detail-line: oklch(1 0 0 / 13%);
+  --detail-selected: oklch(0.72 0.17 225);
+  --detail-selected-foreground: oklch(0.16 0.025 245);
+  --detail-selected-muted: oklch(0.62 0.006 250);
+  --detail-overlay: oklch(0.05 0.01 250 / 58%);
+  --detail-bar: oklch(0.96 0.003 250);
+  --detail-bar-muted: oklch(0.48 0.008 250);
+  --detail-bar-foreground: oklch(0.18 0.006 250);
+  --weather-temperature: oklch(0.72 0.19 48);
+  --weather-rain: oklch(0.76 0.14 225);
+  --weather-wind: oklch(0.77 0.12 180);
+  --weather-humidity: oklch(0.74 0.13 240);
+  --weather-visibility: oklch(0.82 0.02 250);
+  --weather-pressure: oklch(0.72 0.14 315);
+  --weather-uv: oklch(0.86 0.17 92);
+}
+
+.detail-chart-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.25rem;
+  column-gap: 0.75rem;
+}
+
+.detail-chart-line {
+  stroke: var(--detail-line);
+  stroke-width: 1;
+}
+
+.detail-chart-line-dashed {
+  stroke-dasharray: 3 5;
+}
+
+.detail-aqi-scale {
+  position: relative;
+  height: 0.55rem;
+  margin-inline: 0.4rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, oklch(0.72 0.18 145), oklch(0.84 0.17 92), oklch(0.72 0.19 48), oklch(0.63 0.23 28), oklch(0.58 0.2 315));
+}
+
+.detail-aqi-scale span {
+  position: absolute;
+  top: 50%;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 2px solid var(--detail-panel);
+  border-radius: 999px;
+  background: var(--detail-foreground);
+  box-shadow: 0 2px 8px oklch(0 0 0 / 35%);
+  transform: translate(-50%, -50%);
+}
+
+.detail-sun-path {
+  stroke: var(--detail-muted);
+  stroke-width: 2;
+}
+
+.detail-sun-dot {
+  fill: var(--detail-foreground);
+}
+
+.detail-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--detail-control-hover) transparent;
+}
+
+@media (max-width: 420px) {
+  .detail-chart-grid {
+    grid-template-columns: minmax(0, 1fr) 2.6rem;
+    column-gap: 0.5rem;
+  }
 }
 
 .dark {
