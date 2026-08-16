@@ -209,7 +209,6 @@ export function MetricDetail({
   const [key, setKey] = useState<MetricKey>(metric);
   const [dayIdx, setDayIdx] = useState(0);
   const [tempTab, setTempTab] = useState<"actual" | "feels">("actual");
-  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     setKey(metric);
@@ -295,7 +294,8 @@ export function MetricDetail({
           <TopValue
             big={`${Math.round(dayIdx === 0 ? (tempTab === "actual" ? cur.main.temp : cur.main.feels_like) : values[0])}°`}
             sub={tempTab === "actual" ? `${T.t("high")} ${Math.round(day.max)}°  ${T.t("low")} ${Math.round(day.min)}°` : `${T.t("actualTemp")} ${Math.round(dayIdx === 0 ? cur.main.temp : dayHours[0].temp)}°`}
-            aside={<img src={iconUrl(dayIdx === 0 ? cur.weather[0].icon : day.icon)} alt="" className="h-14 w-14" />}
+            inlineIcon={<img src={iconUrl(dayIdx === 0 ? cur.weather[0].icon : day.icon)} alt="" className="h-12 w-12 sm:h-14 sm:w-14" />}
+            rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />}
           />
           <Chart
             points={points(getTemp)}
@@ -316,7 +316,7 @@ export function MetricDetail({
       const current = dayIdx === 0 ? (dayHours.find((hour) => hour.dt >= cur.dt)?.uv ?? 0) : Math.max(...values);
       return (
         <div className="space-y-3">
-          <TopValue big={`${Math.round(current)}`} unit={uvLevel(current)} sub={T.t("whoUvi")} />
+          <TopValue big={`${Math.round(current)}`} unit={uvLevel(current)} sub={T.t("whoUvi")} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => hour.uv)}
             color="var(--weather-uv)"
@@ -335,7 +335,7 @@ export function MetricDetail({
       const gustValues = dayHours.map((hour) => hour.gust);
       return (
         <div className="space-y-3">
-          <TopValue big={`${Math.round(dayIdx === 0 ? cur.wind.speed : windValues[0])}`} unit={windUnit} sub={`${T.t("gustsLabel")}${Math.round(Math.max(...gustValues))} ${windUnit} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} />
+          <TopValue big={`${Math.round(dayIdx === 0 ? cur.wind.speed : windValues[0])}`} unit={windUnit} sub={`${T.t("gustsLabel")}${Math.round(Math.max(...gustValues))} ${windUnit} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => hour.wind)}
             color="var(--weather-wind)"
@@ -362,7 +362,7 @@ export function MetricDetail({
       const maximum = Math.max(...dayHours.map((hour) => hour.precip), 1);
       return (
         <div className="space-y-5">
-          <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} />
+          <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} />
           <Section title={T.t("precipTotal")}>
             <StatRows rows={[
@@ -382,7 +382,7 @@ export function MetricDetail({
       const average = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
       return (
         <div className="space-y-5">
-          <TopValue big={`${dayIdx === 0 ? cur.main.humidity : average}`} unit="%" sub={copy(`今天平均湿度为 ${average}%。`, `Today's average humidity is ${average}%.`)} />
+          <TopValue big={`${dayIdx === 0 ? cur.main.humidity : average}`} unit="%" sub={copy(`今天平均湿度为 ${average}%。`, `Today's average humidity is ${average}%.`)} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => hour.humidity)}
             color="var(--weather-humidity)"
@@ -405,7 +405,7 @@ export function MetricDetail({
       const nowKm = dayIdx === 0 ? cur.visibility / 1000 : values[0];
       return (
         <div className="space-y-3">
-          <TopValue big={nowKm.toFixed(1)} unit={T.t("km")} sub={visibilityLevel(nowKm)} />
+          <TopValue big={nowKm.toFixed(1)} unit={T.t("km")} sub={visibilityLevel(nowKm)} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => (hour.visibility || cur.visibility) / 1000)}
             color="var(--weather-visibility)"
@@ -428,7 +428,7 @@ export function MetricDetail({
       const average = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
       return (
         <div className="space-y-5">
-          <TopValue big={Math.round(dayIdx === 0 ? cur.main.pressure : values[0]).toLocaleString()} unit={T.t("hPa")} sub={trendLabel} trend={trend} />
+          <TopValue big={Math.round(dayIdx === 0 ? cur.main.pressure : values[0]).toLocaleString()} unit={T.t("hPa")} sub={trendLabel} trend={trend} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart points={points((hour) => hour.pressure || cur.main.pressure)} color="var(--weather-pressure)" min={range.min} max={range.max} format={(value) => `${Math.round(value)}`} />
           <InfoSection title={T.t("dailySummary")} text={copy(`当前气压为 ${cur.main.pressure} 百帕，${trendLabel}。今天平均气压约为 ${average} 百帕。`, `Pressure is ${cur.main.pressure} hPa and ${trendLabel.toLowerCase()}. Today's average is about ${average} hPa.`)} />
           <InfoSection title={copy("关于气压", "About Pressure")} text={copy("气压的显著变化可用于预测天气变化。气压降低可能表示雨雪即将来临，气压升高则可能表示天气将转好。", "Significant pressure changes can help predict weather. Falling pressure may signal rain or snow, while rising pressure can indicate improving conditions.")} />
@@ -443,7 +443,7 @@ export function MetricDetail({
       const daylightMinutes = Math.max(0, Math.round((sunset - sunrise) / 60));
       return (
         <div className="space-y-5">
-          <TopValue big={formatTimeL(dayIdx === 0 && cur.dt < sunset ? sunset : sunrise, tz)} sub={dayIdx === 0 && cur.dt < sunset ? T.t("todaySunset") : T.t("todaySunrise")} />
+          <TopValue big={formatTimeL(dayIdx === 0 && cur.dt < sunset ? sunset : sunrise, tz)} sub={dayIdx === 0 && cur.dt < sunset ? T.t("todaySunset") : T.t("todaySunrise")} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <SunPath progress={progress} />
           <div className="divide-y divide-detail-line border-y border-detail-line">
             <DataRow label={T.t("firstLight")} value={formatTimeL(sunrise - 27 * 60, tz)} />
@@ -499,22 +499,6 @@ export function MetricDetail({
           )}
 
           <div className="px-5 pb-9 pt-2 sm:px-8">
-            {key !== "aqi" && (
-              <div className="relative mb-2 flex justify-end">
-                <button type="button" onClick={() => setPickerOpen((open) => !open)} className="flex h-10 items-center gap-2 rounded-full bg-detail-control px-4 text-sm [&_svg]:h-4 [&_svg]:w-4" aria-expanded={pickerOpen}>
-                  {heading.icon}<ChevronDown />
-                </button>
-                {pickerOpen && (
-                  <div className="absolute right-0 top-12 z-20 w-60 overflow-hidden rounded-2xl border border-detail-line bg-detail-menu py-1 shadow-2xl backdrop-blur-2xl">
-                    {metrics.map((item) => (
-                      <button type="button" key={item.k} onClick={() => { setKey(item.k); setPickerOpen(false); }} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-detail-control [&_svg]:h-4 [&_svg]:w-4">
-                        <span className="w-4">{key === item.k ? <Check /> : null}</span>{item.icon}<span>{item.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
             <DetailBody />
           </div>
         </div>
@@ -523,18 +507,42 @@ export function MetricDetail({
   );
 }
 
-function TopValue({ big, unit, sub, aside, trend }: { big: string; unit?: string; sub?: string; aside?: React.ReactNode; trend?: number }) {
+function MetricSelector({ metrics: items, key: current, onSelect, icon }: { metrics: { k: MetricKey; icon: React.ReactNode; label: string }[]; key: MetricKey; onSelect: (k: MetricKey) => void; icon: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((v) => !v)} className="flex h-9 items-center gap-1.5 rounded-full bg-detail-control pl-3 pr-2.5 text-sm transition hover:bg-detail-control-hover [&_svg]:h-4 [&_svg]:w-4" aria-expanded={open}>
+        {icon}<ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden="true" />
+          <div className="absolute right-0 top-11 z-20 w-56 overflow-hidden rounded-2xl border border-detail-line bg-detail-menu py-1 shadow-2xl backdrop-blur-2xl">
+            {items.map((item) => (
+              <button type="button" key={item.k} onClick={() => { onSelect(item.k); setOpen(false); }} className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-detail-control [&_svg]:h-4 [&_svg]:w-4 ${current === item.k ? "text-detail-selected-foreground" : ""}`}>
+                <span className="w-4">{current === item.k ? <Check className="h-4 w-4" /> : null}</span>{item.icon}<span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function TopValue({ big, unit, sub, trend, inlineIcon, rightSlot }: { big: string; unit?: string; sub?: string; trend?: number; inlineIcon?: React.ReactNode; rightSlot?: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-baseline gap-x-2">
+        <div className="flex items-baseline gap-x-2">
           {trend !== undefined && <span className="text-2xl" aria-hidden="true">{trend > 1 ? "↑" : trend < -1 ? "↓" : "→"}</span>}
           <span className="text-5xl font-light leading-none tabular-nums sm:text-6xl">{big}</span>
+          {inlineIcon && <span className="leading-none [&_svg]:h-9 [&_svg]:w-9">{inlineIcon}</span>}
           {unit && <span className="text-lg text-detail-muted">{unit}</span>}
         </div>
         {sub && <p className="mt-2 text-base text-detail-muted">{sub}</p>}
       </div>
-      {aside && <div className="shrink-0">{aside}</div>}
+      {rightSlot && <div className="shrink-0 pt-1">{rightSlot}</div>}
     </div>
   );
 }
