@@ -343,10 +343,10 @@ export function MetricDetail({
             max={Math.max(...gustValues) * 1.15 || 5}
             format={(value) => `${Math.round(value)}`}
             header={
-              <div className="relative h-4 text-detail-muted">
+              <div className="relative h-8 text-detail-muted">
                 {sampleHours(dayHours, tz).map((hour) => (
                   <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${hour.pos}%` }}>
-                    <Navigation className="h-3.5 w-3.5" style={{ transform: `rotate(${hour.windDeg + 180}deg)` }} />
+                    <Navigation className="h-4 w-4" style={{ transform: `rotate(${hour.windDeg + 180}deg)` }} />
                   </span>
                 ))}
               </div>
@@ -498,7 +498,7 @@ export function MetricDetail({
             </div>
           )}
 
-          <div className="px-5 pb-9 sm:px-8">
+          <div className="px-5 pb-9 pt-2 sm:px-8">
             {key !== "aqi" && (
               <div className="relative mb-2 flex justify-end">
                 <button type="button" onClick={() => setPickerOpen((open) => !open)} className="flex h-10 items-center gap-2 rounded-full bg-detail-control px-4 text-sm [&_svg]:h-4 [&_svg]:w-4" aria-expanded={pickerOpen}>
