@@ -190,6 +190,87 @@
   }
 }
 
+/* Icon/value rows above the curve share the chart's y-axis gutter so they
+   line up horizontally with the curve. We shrink the width (not pad) because
+   `left: %` on absolutely-positioned items is relative to the padding box. */
+.detail-chart-inset {
+  width: calc(100% - 4rem);
+}
+@media (max-width: 420px) {
+  .detail-chart-inset {
+    width: calc(100% - 3.1rem);
+  }
+}
+
+/* ---- Apple-style animations ---- */
+@keyframes detail-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sheet-in {
+  0% { transform: translateY(105%); }
+  62% { transform: translateY(-1.4%); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pop-in {
+  0% { opacity: 0; transform: scale(0.4); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes app-fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.detail-fade-enter {
+  animation: detail-fade-in 0.32s ease-out both;
+}
+
+.detail-sheet-enter {
+  animation: sheet-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: transform;
+}
+
+.detail-rise {
+  animation: rise-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.detail-rise-1 { animation-delay: 0.05s; }
+.detail-rise-2 { animation-delay: 0.12s; }
+.detail-rise-3 { animation-delay: 0.19s; }
+.detail-rise-4 { animation-delay: 0.26s; }
+
+.detail-chart-enter {
+  animation: rise-in 0.72s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+.detail-sun-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.28s both;
+}
+
+.app-fade-up {
+  animation: app-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-sheet-enter,
+  .detail-fade-enter,
+  .detail-rise,
+  .detail-chart-enter,
+  .detail-sun-dot,
+  .app-fade-up {
+    animation: none;
+  }
+}
+
 .dark {
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
