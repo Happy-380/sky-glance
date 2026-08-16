@@ -269,7 +269,7 @@ export function MetricDetail({
       const values = dayHours.map(getTemp);
       const range = chartRange(values);
       return (
-        <div className="space-y-5">
+        <div className="space-y-3">
           <TopValue
             big={`${Math.round(dayIdx === 0 ? (tempTab === "actual" ? cur.main.temp : cur.main.feels_like) : values[0])}°`}
             sub={tempTab === "actual" ? `${T.t("high")} ${Math.round(day.max)}°  ${T.t("low")} ${Math.round(day.min)}°` : `${T.t("actualTemp")} ${Math.round(dayIdx === 0 ? cur.main.temp : dayHours[0].temp)}°`}
@@ -293,7 +293,7 @@ export function MetricDetail({
       const values = dayHours.map((hour) => hour.uv);
       const current = dayIdx === 0 ? (dayHours.find((hour) => hour.dt >= cur.dt)?.uv ?? 0) : Math.max(...values);
       return (
-        <div className="space-y-6">
+        <div className="space-y-3">
           <TopValue big={`${Math.round(current)}`} unit={uvLevel(current)} sub={T.t("whoUvi")} />
           <Chart
             points={points((hour) => hour.uv)}
@@ -312,7 +312,7 @@ export function MetricDetail({
       const windValues = dayHours.map((hour) => hour.wind);
       const gustValues = dayHours.map((hour) => hour.gust);
       return (
-        <div className="space-y-6">
+        <div className="space-y-3">
           <TopValue big={`${Math.round(dayIdx === 0 ? cur.wind.speed : windValues[0])}`} unit={windUnit} sub={`${T.t("gustsLabel")}${Math.round(Math.max(...gustValues))} ${windUnit} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} />
           <Chart
             points={points((hour) => hour.wind)}
@@ -322,11 +322,15 @@ export function MetricDetail({
             format={(value) => `${Math.round(value)}`}
             header={
               <div className="relative h-4 text-detail-muted">
-                {dayHours.filter((_, index) => index % 2 === 0).slice(0, 12).map((hour) => (
-                  <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }}>
-                    <Navigation className="h-3.5 w-3.5" style={{ transform: `rotate(${hour.windDeg + 180}deg)` }} />
-                  </span>
-                ))}
+                {(() => {
+                  const step = Math.max(1, Math.ceil(dayHours.length / 12));
+                  const indices = Array.from(new Set([0, ...Array.from({ length: Math.ceil(dayHours.length / step) }, (_, i) => i * step), dayHours.length - 1]));
+                  return indices.map((index) => dayHours[index]).filter((hour): hour is OMHour => Boolean(hour)).map((hour) => (
+                    <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }}>
+                      <Navigation className="h-3.5 w-3.5" style={{ transform: `rotate(${hour.windDeg + 180}deg)` }} />
+                    </span>
+                  ));
+                })()}
               </div>
             }
           />
@@ -339,7 +343,7 @@ export function MetricDetail({
       const total = dayHours.reduce((sum, hour) => sum + hour.precip, 0);
       const maximum = Math.max(...dayHours.map((hour) => hour.precip), 1);
       return (
-        <div className="space-y-7">
+        <div className="space-y-5">
           <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} />
           <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} />
           <Section title={T.t("precipTotal")}>
@@ -359,7 +363,7 @@ export function MetricDetail({
       const values = dayHours.map((hour) => hour.humidity);
       const average = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
       return (
-        <div className="space-y-7">
+        <div className="space-y-5">
           <TopValue big={`${dayIdx === 0 ? cur.main.humidity : average}`} unit="%" sub={copy(`今天平均湿度为 ${average}%。`, `Today's average humidity is ${average}%.`)} />
           <Chart
             points={points((hour) => hour.humidity)}
@@ -382,7 +386,7 @@ export function MetricDetail({
       const values = dayHours.map((hour) => (hour.visibility || cur.visibility) / 1000);
       const nowKm = dayIdx === 0 ? cur.visibility / 1000 : values[0];
       return (
-        <div className="space-y-6">
+        <div className="space-y-3">
           <TopValue big={nowKm.toFixed(1)} unit={T.t("km")} sub={visibilityLevel(nowKm)} />
           <Chart
             points={points((hour) => (hour.visibility || cur.visibility) / 1000)}
@@ -405,7 +409,7 @@ export function MetricDetail({
       const trendLabel = trend > 1 ? T.t("trendRising") : trend < -1 ? T.t("trendFalling") : T.t("trendSteady");
       const average = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
       return (
-        <div className="space-y-7">
+        <div className="space-y-5">
           <TopValue big={Math.round(dayIdx === 0 ? cur.main.pressure : values[0]).toLocaleString()} unit={T.t("hPa")} sub={trendLabel} trend={trend} />
           <Chart points={points((hour) => hour.pressure || cur.main.pressure)} color="var(--weather-pressure)" min={range.min} max={range.max} format={(value) => `${Math.round(value)}`} />
           <InfoSection title={T.t("dailySummary")} text={copy(`当前气压为 ${cur.main.pressure} 百帕，${trendLabel}。今天平均气压约为 ${average} 百帕。`, `Pressure is ${cur.main.pressure} hPa and ${trendLabel.toLowerCase()}. Today's average is about ${average} hPa.`)} />
@@ -420,7 +424,7 @@ export function MetricDetail({
       const progress = Math.min(Math.max((cur.dt - sunrise) / (sunset - sunrise || 1), 0), 1);
       const daylightMinutes = Math.max(0, Math.round((sunset - sunrise) / 60));
       return (
-        <div className="space-y-7">
+        <div className="space-y-5">
           <TopValue big={formatTimeL(dayIdx === 0 && cur.dt < sunset ? sunset : sunrise, tz)} sub={dayIdx === 0 && cur.dt < sunset ? T.t("todaySunset") : T.t("todaySunrise")} />
           <SunPath progress={progress} />
           <div className="divide-y divide-detail-line border-y border-detail-line">
@@ -503,25 +507,29 @@ export function MetricDetail({
 
 function TopValue({ big, unit, sub, aside, trend }: { big: string; unit?: string; sub?: string; aside?: React.ReactNode; trend?: number }) {
   return (
-    <div className="flex min-h-24 items-start justify-between gap-4">
-      <div className="min-w-0 pt-1">
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2">
           {trend !== undefined && <span className="text-2xl" aria-hidden="true">{trend > 1 ? "↑" : trend < -1 ? "↓" : "→"}</span>}
           <span className="text-5xl font-light leading-none tabular-nums sm:text-6xl">{big}</span>
           {unit && <span className="text-lg text-detail-muted">{unit}</span>}
         </div>
-        {sub && <p className="mt-3 text-base text-detail-muted">{sub}</p>}
+        {sub && <p className="mt-2 text-base text-detail-muted">{sub}</p>}
       </div>
-      {aside && <div className="shrink-0 pt-1">{aside}</div>}
+      {aside && <div className="shrink-0">{aside}</div>}
     </div>
   );
 }
 
 function IconRow({ hours, tz }: { hours: OMHour[]; tz: number }) {
-  const sample = hours.filter((_, index) => index % Math.max(1, Math.ceil(hours.length / 12)) === 0).slice(0, 12);
+  /* Sample roughly one icon every 2 hours and always include the last hour
+     (so the row reaches the 24-tick) and the first (so it lines up with 0). */
+  const step = Math.max(1, Math.ceil(hours.length / 12));
+  const indices = Array.from(new Set([0, ...Array.from({ length: Math.ceil(hours.length / step) }, (_, i) => i * step), hours.length - 1]));
+  const sample = indices.map((index) => hours[index]).filter((hour): hour is OMHour => Boolean(hour && hour.icon));
   return (
     <div className="relative h-5 sm:h-6">
-      {sample.filter((hour) => hour.icon).map((hour) => (
+      {sample.map((hour) => (
         <img key={hour.dt} src={iconUrl(hour.icon)} alt="" className="absolute top-0 h-5 w-5 -translate-x-1/2 sm:h-6 sm:w-6" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }} />
       ))}
     </div>
@@ -529,7 +537,11 @@ function IconRow({ hours, tz }: { hours: OMHour[]; tz: number }) {
 }
 
 function ValueRow({ hours, value, tz }: { hours: OMHour[]; value: (hour: OMHour) => string; tz: number }) {
-  const sample = hours.filter((_, index) => index % Math.max(1, Math.ceil(hours.length / 12)) === 0).slice(0, 12);
+  /* Same sampling strategy as IconRow so the numbers line up with the icons
+     and the time labels, including the 0 and 24 ticks. */
+  const step = Math.max(1, Math.ceil(hours.length / 12));
+  const indices = Array.from(new Set([0, ...Array.from({ length: Math.ceil(hours.length / step) }, (_, i) => i * step), hours.length - 1]));
+  const sample = indices.map((index) => hours[index]).filter((hour): hour is OMHour => Boolean(hour));
   return (
     <div className="relative h-4 text-center text-[10px] tabular-nums text-detail-muted sm:h-5 sm:text-xs">
       {sample.map((hour) => (
