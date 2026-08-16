@@ -33,6 +33,12 @@ export type MetricKey =
 
 const HOUR = 3600;
 
+/* Horizontal inset (fraction of the chart width) reserved at each end so the
+   first/last data points and axis labels aren't clipped. The curve, its time
+   labels and the icon/value rows above it all share this mapping so they line up. */
+const AXLE_PAD = 0.05;
+const axleFrac = (hour: number) => (AXLE_PAD + (hour / 24) * (1 - 2 * AXLE_PAD)) * 100;
+
 function localParts(unix: number, tz: number) {
   const d = new Date((unix + tz) * 1000);
   return {
@@ -79,10 +85,14 @@ function Chart({
   const width = 320;
   const height = 164;
   const span = max - min || 1;
-  const x = (hour: number) => (hour / 24) * width;
+  const x = (hour: number) => (axleFrac(hour) / 100) * width;
   const y = (value: number) => height - ((value - min) / span) * height;
   const gradientId = useMemo(() => `chart-${Math.random().toString(36).slice(2)}`, []);
-  const line = points
+  // Close the line at the "24" tick so the curve always reaches the right edge.
+  const closed = bars
+    ? points
+    : [...points, points.length ? { ...points[points.length - 1], h: 24 } : { h: 0, v: 0 }];
+  const line = closed
     .map((point, index) => `${index ? "L" : "M"}${x(point.h).toFixed(1)} ${y(point.v).toFixed(1)}`)
     .join(" ");
   const fill = `${line} L${width} ${height} L0 ${height} Z`;
@@ -91,7 +101,7 @@ function Chart({
   return (
     <div className="detail-chart-grid">
       <div className="min-w-0">
-        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="block h-44 w-full overflow-visible">
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-44 w-full overflow-visible">
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color} stopOpacity="0.58" />
@@ -124,8 +134,12 @@ function Chart({
             </>
           )}
         </svg>
-        <div className="grid grid-cols-5 pt-2 text-xs tabular-nums text-detail-muted">
-          <span>0</span><span className="text-center">6</span><span className="text-center">12</span><span className="text-center">18</span><span className="text-right">24</span>
+        <div className="relative h-4 pt-1 text-xs tabular-nums text-detail-muted">
+          {[0, 6, 12, 18, 24].map((hour) => (
+            <span key={hour} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(hour)}%` }}>
+              {hour}
+            </span>
+          ))}
         </div>
       </div>
       <div className="flex h-44 flex-col justify-between border-l border-detail-line pl-3 text-right text-xs tabular-nums text-detail-muted">
@@ -249,7 +263,7 @@ export function MetricDetail({
             sub={tempTab === "actual" ? `${T.t("high")} ${Math.round(day.max)}°  ${T.t("low")} ${Math.round(day.min)}°` : `${T.t("actualTemp")} ${Math.round(dayIdx === 0 ? cur.main.temp : dayHours[0].temp)}°`}
             aside={<img src={iconUrl(dayIdx === 0 ? cur.weather[0].icon : day.icon)} alt="" className="h-14 w-14" />}
           />
-          <IconRow hours={dayHours} />
+          <IconRow hours={dayHours} tz={tz} />
           <Chart points={points(getTemp)} color="var(--weather-temperature)" min={range.min} max={range.max} format={(value) => `${Math.round(value)}°`} />
           <SegmentedControl value={tempTab} onChange={setTempTab} left={T.t("actualTemp")} right={T.t("apparentTemp")} />
           <p className="text-base text-detail-muted">{tempTab === "actual" ? T.t("actualTempDesc") : T.t("apparentTempDesc")}</p>
@@ -263,7 +277,7 @@ export function MetricDetail({
       return (
         <div className="space-y-6">
           <TopValue big={`${Math.round(current)}`} unit={uvLevel(current)} sub={T.t("whoUvi")} />
-          <ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.uv)}`} />
+          <ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.uv)}`} tz={tz} />
           <Chart points={points((hour) => hour.uv)} color="var(--weather-uv)" min={0} max={Math.max(11, Math.max(...values) + 1)} format={(value) => `${Math.round(value)}`} />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天紫外线最高为 ${Math.round(Math.max(...values))}（${uvLevel(Math.max(...values))}）。`, `Peak UV today is ${Math.round(Math.max(...values))} (${uvLevel(Math.max(...values))}).`)} />
         </div>
@@ -276,8 +290,12 @@ export function MetricDetail({
       return (
         <div className="space-y-6">
           <TopValue big={`${Math.round(dayIdx === 0 ? cur.wind.speed : windValues[0])}`} unit={windUnit} sub={`${T.t("gustsLabel")}${Math.round(Math.max(...gustValues))} ${windUnit} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} />
-          <div className="grid grid-cols-12 items-center text-detail-muted">
-            {dayHours.filter((_, index) => index % 2 === 0).slice(0, 12).map((hour) => <Navigation key={hour.dt} className="mx-auto h-3.5 w-3.5" style={{ transform: `rotate(${hour.windDeg + 180}deg)` }} />)}
+          <div className="detail-chart-inset relative h-4 text-detail-muted">
+            {dayHours.filter((_, index) => index % 2 === 0).slice(0, 12).map((hour) => (
+              <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }}>
+                <Navigation className="h-3.5 w-3.5" style={{ transform: `rotate(${hour.windDeg + 180}deg)` }} />
+              </span>
+            ))}
           </div>
           <Chart points={points((hour) => hour.wind)} color="var(--weather-wind)" min={0} max={Math.max(...gustValues) * 1.15 || 5} format={(value) => `${Math.round(value)}`} />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天风速 ${Math.round(Math.min(...windValues))}–${Math.round(Math.max(...windValues))} ${windUnit}，阵风最高 ${Math.round(Math.max(...gustValues))} ${windUnit}。`, `Wind ${Math.round(Math.min(...windValues))}–${Math.round(Math.max(...windValues))} ${windUnit} today, gusting to ${Math.round(Math.max(...gustValues))} ${windUnit}.`)} />
@@ -311,7 +329,7 @@ export function MetricDetail({
       return (
         <div className="space-y-7">
           <TopValue big={`${dayIdx === 0 ? cur.main.humidity : average}`} unit="%" sub={copy(`今天平均湿度为 ${average}%。`, `Today's average humidity is ${average}%.`)} />
-          <ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.humidity)}%`} />
+          <ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.humidity)}%`} tz={tz} />
           <Chart points={points((hour) => hour.humidity)} color="var(--weather-humidity)" min={0} max={100} format={(value) => `${Math.round(value)}%`} />
           <Section title={copy("每日比较", "Daily Comparison")}>
             <ComparisonBar label={T.t("today")} value={average} max={100} />
@@ -328,7 +346,7 @@ export function MetricDetail({
       return (
         <div className="space-y-6">
           <TopValue big={nowKm.toFixed(1)} unit={T.t("km")} sub={visibilityLevel(nowKm)} />
-          <ValueRow hours={dayHours} value={(hour) => `${Math.round((hour.visibility || cur.visibility) / 1000)}`} />
+          <ValueRow hours={dayHours} value={(hour) => `${Math.round((hour.visibility || cur.visibility) / 1000)}`} tz={tz} />
           <Chart points={points((hour) => (hour.visibility || cur.visibility) / 1000)} color="var(--weather-visibility)" min={0} max={Math.max(...values) * 1.15 || 20} format={(value) => `${Math.round(value)}`} />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天能见度在 ${Math.round(Math.min(...values))} 至 ${Math.round(Math.max(...values))} 公里之间。`, `Visibility ranges from ${Math.round(Math.min(...values))} to ${Math.round(Math.max(...values))} km today.`)} />
           <InfoSection title={copy("关于能见度", "About Visibility")} text={copy("能见度表示在当前天气状况下可以清晰看见物体的最远距离。", "Visibility is the greatest distance at which objects can be clearly seen under current conditions.")} />
@@ -384,8 +402,8 @@ export function MetricDetail({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-5">
-      <button type="button" className="absolute inset-0 bg-detail-overlay backdrop-blur-sm" onClick={onClose} aria-label={T.t("close")} />
-      <section role="dialog" aria-modal="true" aria-label={heading.label} className="relative z-10 flex max-h-[94dvh] w-full max-w-[640px] flex-col overflow-hidden rounded-t-[28px] border border-detail-line bg-detail-panel text-detail-foreground shadow-2xl backdrop-blur-2xl sm:max-h-[88dvh] sm:rounded-[28px]">
+      <button type="button" className="detail-fade-enter absolute inset-0 bg-detail-overlay backdrop-blur-sm" onClick={onClose} aria-label={T.t("close")} />
+      <section role="dialog" aria-modal="true" aria-label={heading.label} className="detail-sheet-enter relative z-10 flex max-h-[94dvh] w-full max-w-[640px] flex-col overflow-hidden rounded-t-[28px] border border-detail-line bg-detail-panel text-detail-foreground shadow-2xl backdrop-blur-2xl sm:max-h-[88dvh] sm:rounded-[28px]">
         <header className="relative flex h-16 shrink-0 items-center justify-center border-b border-detail-line px-16">
           <div className="flex min-w-0 items-center gap-2 text-lg font-semibold [&_svg]:h-5 [&_svg]:w-5">
             {heading.icon}<span className="truncate">{heading.label}</span>
@@ -397,7 +415,7 @@ export function MetricDetail({
 
         <div className="detail-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {key !== "aqi" && (
-            <div className="border-b border-detail-line px-4 pb-4 pt-4 sm:px-7">
+            <div className="detail-rise detail-rise-1 border-b border-detail-line px-4 pb-3 pt-3 sm:px-7">
               <div className="grid grid-cols-10 gap-1">
                 {days.slice(0, 10).map((item, index) => {
                   const parts = localParts(item.dt, tz);
@@ -410,13 +428,13 @@ export function MetricDetail({
                   );
                 })}
               </div>
-              <p className="pt-3 text-center text-base font-medium text-detail-foreground">{dateLabel}</p>
+              <p className="pt-2 text-center text-base font-medium text-detail-foreground">{dateLabel}</p>
             </div>
           )}
 
-          <div className="px-5 pb-9 pt-5 sm:px-8">
+          <div className="px-5 pb-9 pt-3 sm:px-8">
             {key !== "aqi" && (
-              <div className="relative mb-4 flex justify-end">
+              <div className="relative mb-3 flex justify-end">
                 <button type="button" onClick={() => setPickerOpen((open) => !open)} className="flex h-10 items-center gap-2 rounded-full bg-detail-control px-4 text-sm [&_svg]:h-4 [&_svg]:w-4" aria-expanded={pickerOpen}>
                   {heading.icon}<ChevronDown />
                 </button>
@@ -455,14 +473,28 @@ function TopValue({ big, unit, sub, aside, trend }: { big: string; unit?: string
   );
 }
 
-function IconRow({ hours }: { hours: OMHour[] }) {
+function IconRow({ hours, tz }: { hours: OMHour[]; tz: number }) {
   const sample = hours.filter((_, index) => index % Math.max(1, Math.ceil(hours.length / 12)) === 0).slice(0, 12);
-  return <div className="grid grid-cols-12 items-center">{sample.map((hour) => <img key={hour.dt} src={iconUrl(hour.icon)} alt="" className="mx-auto h-5 w-5 sm:h-6 sm:w-6" />)}</div>;
+  return (
+    <div className="detail-chart-inset relative h-5 sm:h-6">
+      {sample.map((hour) => (
+        <img key={hour.dt} src={iconUrl(hour.icon)} alt="" className="absolute top-0 h-5 w-5 -translate-x-1/2 sm:h-6 sm:w-6" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }} />
+      ))}
+    </div>
+  );
 }
 
-function ValueRow({ hours, value }: { hours: OMHour[]; value: (hour: OMHour) => string }) {
+function ValueRow({ hours, value, tz }: { hours: OMHour[]; value: (hour: OMHour) => string; tz: number }) {
   const sample = hours.filter((_, index) => index % Math.max(1, Math.ceil(hours.length / 12)) === 0).slice(0, 12);
-  return <div className="grid grid-cols-12 text-center text-[10px] tabular-nums text-detail-muted sm:text-xs">{sample.map((hour) => <span key={hour.dt}>{value(hour)}</span>)}</div>;
+  return (
+    <div className="detail-chart-inset relative h-4 text-center text-[10px] tabular-nums text-detail-muted sm:h-5 sm:text-xs">
+      {sample.map((hour) => (
+        <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }}>
+          {value(hour)}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function SegmentedControl({ value, onChange, left, right }: { value: "actual" | "feels"; onChange: (value: "actual" | "feels") => void; left: string; right: string }) {
@@ -502,7 +534,7 @@ function SunPath({ progress }: { progress: number }) {
   const x = 12 + progress * 296;
   const y = 122 - Math.sin(progress * Math.PI) * 100;
   return (
-    <div>
+    <div className="detail-rise detail-rise-2">
       <svg viewBox="0 0 320 140" className="block h-40 w-full overflow-visible">
         <line x1="0" y1="122" x2="320" y2="122" className="detail-chart-line" />
         <path d="M12 122 Q160 -78 308 122" fill="none" className="detail-sun-path" />
