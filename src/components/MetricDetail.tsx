@@ -316,7 +316,7 @@ export function MetricDetail({
       const current = dayIdx === 0 ? (dayHours.find((hour) => hour.dt >= cur.dt)?.uv ?? 0) : Math.max(...values);
       return (
         <div className="space-y-3">
-          <TopValue big={`${Math.round(current)}`} unit={uvLevel(current)} sub={T.t("whoUvi")} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={`${Math.round(current)}`} unit={uvLevel(current)} sub={T.t("whoUvi")} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => hour.uv)}
             color="var(--weather-uv)"
@@ -335,7 +335,7 @@ export function MetricDetail({
       const gustValues = dayHours.map((hour) => hour.gust);
       return (
         <div className="space-y-3">
-          <TopValue big={`${Math.round(dayIdx === 0 ? cur.wind.speed : windValues[0])}`} unit={windUnit} sub={`${T.t("gustsLabel")}${Math.round(Math.max(...gustValues))} ${windUnit} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={`${Math.round(dayIdx === 0 ? cur.wind.speed : windValues[0])}`} unit={windUnit} sub={`${T.t("gustsLabel")}${Math.round(Math.max(...gustValues))} ${windUnit} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => hour.wind)}
             color="var(--weather-wind)"
@@ -362,7 +362,7 @@ export function MetricDetail({
       const maximum = Math.max(...dayHours.map((hour) => hour.precip), 1);
       return (
         <div className="space-y-5">
-          <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} />
           <Section title={T.t("precipTotal")}>
             <StatRows rows={[
@@ -382,7 +382,7 @@ export function MetricDetail({
       const average = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
       return (
         <div className="space-y-5">
-          <TopValue big={`${dayIdx === 0 ? cur.main.humidity : average}`} unit="%" sub={copy(`今天平均湿度为 ${average}%。`, `Today's average humidity is ${average}%.`)} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={`${dayIdx === 0 ? cur.main.humidity : average}`} unit="%" sub={copy(`今天平均湿度为 ${average}%。`, `Today's average humidity is ${average}%.`)} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => hour.humidity)}
             color="var(--weather-humidity)"
@@ -405,7 +405,7 @@ export function MetricDetail({
       const nowKm = dayIdx === 0 ? cur.visibility / 1000 : values[0];
       return (
         <div className="space-y-3">
-          <TopValue big={nowKm.toFixed(1)} unit={T.t("km")} sub={visibilityLevel(nowKm)} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={nowKm.toFixed(1)} unit={T.t("km")} sub={visibilityLevel(nowKm)} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => (hour.visibility || cur.visibility) / 1000)}
             color="var(--weather-visibility)"
@@ -428,7 +428,7 @@ export function MetricDetail({
       const average = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
       return (
         <div className="space-y-5">
-          <TopValue big={Math.round(dayIdx === 0 ? cur.main.pressure : values[0]).toLocaleString()} unit={T.t("hPa")} sub={trendLabel} trend={trend} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={Math.round(dayIdx === 0 ? cur.main.pressure : values[0]).toLocaleString()} unit={T.t("hPa")} sub={trendLabel} trend={trend} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart points={points((hour) => hour.pressure || cur.main.pressure)} color="var(--weather-pressure)" min={range.min} max={range.max} format={(value) => `${Math.round(value)}`} />
           <InfoSection title={T.t("dailySummary")} text={copy(`当前气压为 ${cur.main.pressure} 百帕，${trendLabel}。今天平均气压约为 ${average} 百帕。`, `Pressure is ${cur.main.pressure} hPa and ${trendLabel.toLowerCase()}. Today's average is about ${average} hPa.`)} />
           <InfoSection title={copy("关于气压", "About Pressure")} text={copy("气压的显著变化可用于预测天气变化。气压降低可能表示雨雪即将来临，气压升高则可能表示天气将转好。", "Significant pressure changes can help predict weather. Falling pressure may signal rain or snow, while rising pressure can indicate improving conditions.")} />
@@ -443,7 +443,7 @@ export function MetricDetail({
       const daylightMinutes = Math.max(0, Math.round((sunset - sunrise) / 60));
       return (
         <div className="space-y-5">
-          <TopValue big={formatTimeL(dayIdx === 0 && cur.dt < sunset ? sunset : sunrise, tz)} sub={dayIdx === 0 && cur.dt < sunset ? T.t("todaySunset") : T.t("todaySunrise")} inlineIcon={heading.icon} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={formatTimeL(dayIdx === 0 && cur.dt < sunset ? sunset : sunrise, tz)} sub={dayIdx === 0 && cur.dt < sunset ? T.t("todaySunset") : T.t("todaySunrise")} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <SunPath progress={progress} />
           <div className="divide-y divide-detail-line border-y border-detail-line">
             <DataRow label={T.t("firstLight")} value={formatTimeL(sunrise - 27 * 60, tz)} />
