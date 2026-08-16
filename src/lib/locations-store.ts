@@ -14,10 +14,19 @@ const ACTIVE_KEY = "vertex-weather-active";
 const UNITS_KEY = "vertex-weather-units";
 const EVT = "locations-changed";
 
+/* 首次使用（本地从未写入过城市列表）时预置的默认城市。一旦用户增删，
+   就写入真实存储并覆盖默认值。 */
+const DEFAULT_LOCATIONS: SavedLocation[] = [
+  { id: "39.904_116.407", name: "北京", country: "CN", lat: 39.9042, lon: 116.4074 },
+  { id: "40.713_-74.006", name: "New York", country: "US", state: "NY", lat: 40.7128, lon: -74.006 },
+];
+
 function read(): SavedLocation[] {
   if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
+    const raw = localStorage.getItem(KEY);
+    if (raw === null) return DEFAULT_LOCATIONS;
+    return JSON.parse(raw);
   } catch {
     return [];
   }
