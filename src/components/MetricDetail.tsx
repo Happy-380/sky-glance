@@ -54,6 +54,28 @@ function dayKey(unix: number, tz: number) {
   return `${p.y}-${p.m}-${p.day}`;
 }
 
+/* Build the icon/value row samples: every ~2 hours, with the first sample
+   anchored to the 0-tick (pos=0) and the last to the 24-tick (pos=100) so the
+   row visually starts and ends at the chart's edges. The last two samples
+   can share a position to avoid clustering near the right edge. */
+function sampleHours(hours: OMHour[], tz: number) {
+  const step = Math.max(1, Math.ceil(hours.length / 12));
+  const picks: number[] = [];
+  for (let index = 0; index < hours.length; index += step) picks.push(index);
+  if (picks[picks.length - 1] !== hours.length - 1) picks.push(hours.length - 1);
+  return picks
+    .map((index) => hours[index])
+    .filter((hour): hour is OMHour => Boolean(hour))
+    .map((hour, i, arr) => {
+      const isFirst = i === 0;
+      const isLast = i === arr.length - 1;
+      return {
+        ...hour,
+        pos: isFirst ? 0 : isLast ? 100 : axleFrac(localParts(hour.dt, tz).hour),
+      };
+    });
+}
+
 function chartRange(values: number[], pad = 0.1, floor?: number) {
   const lo = Math.min(...values);
   const hi = Math.max(...values);
@@ -322,15 +344,11 @@ export function MetricDetail({
             format={(value) => `${Math.round(value)}`}
             header={
               <div className="relative h-4 text-detail-muted">
-                {(() => {
-                  const step = Math.max(1, Math.ceil(dayHours.length / 12));
-                  const indices = Array.from(new Set([0, ...Array.from({ length: Math.ceil(dayHours.length / step) }, (_, i) => i * step), dayHours.length - 1]));
-                  return indices.map((index) => dayHours[index]).filter((hour): hour is OMHour => Boolean(hour)).map((hour) => (
-                    <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }}>
-                      <Navigation className="h-3.5 w-3.5" style={{ transform: `rotate(${hour.windDeg + 180}deg)` }} />
-                    </span>
-                  ));
-                })()}
+                {sampleHours(dayHours, tz).map((hour) => (
+                  <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${hour.pos}%` }}>
+                    <Navigation className="h-3.5 w-3.5" style={{ transform: `rotate(${hour.windDeg + 180}deg)` }} />
+                  </span>
+                ))}
               </div>
             }
           />
@@ -480,9 +498,9 @@ export function MetricDetail({
             </div>
           )}
 
-          <div className="px-5 pb-9 pt-3 sm:px-8">
+          <div className="px-5 pb-9 sm:px-8">
             {key !== "aqi" && (
-              <div className="relative mb-3 flex justify-end">
+              <div className="relative mb-2 flex justify-end">
                 <button type="button" onClick={() => setPickerOpen((open) => !open)} className="flex h-10 items-center gap-2 rounded-full bg-detail-control px-4 text-sm [&_svg]:h-4 [&_svg]:w-4" aria-expanded={pickerOpen}>
                   {heading.icon}<ChevronDown />
                 </button>
@@ -522,15 +540,13 @@ function TopValue({ big, unit, sub, aside, trend }: { big: string; unit?: string
 }
 
 function IconRow({ hours, tz }: { hours: OMHour[]; tz: number }) {
-  /* Sample roughly one icon every 2 hours and always include the last hour
-     (so the row reaches the 24-tick) and the first (so it lines up with 0). */
-  const step = Math.max(1, Math.ceil(hours.length / 12));
-  const indices = Array.from(new Set([0, ...Array.from({ length: Math.ceil(hours.length / step) }, (_, i) => i * step), hours.length - 1]));
-  const sample = indices.map((index) => hours[index]).filter((hour): hour is OMHour => Boolean(hour && hour.icon));
+  /* Sample roughly one icon every 2 hours and always anchor the first icon at
+     the 0-tick and the last at the 24-tick so the row reaches both ends. */
+  const sample = sampleHours(hours, tz);
   return (
     <div className="relative h-5 sm:h-6">
       {sample.map((hour) => (
-        <img key={hour.dt} src={iconUrl(hour.icon)} alt="" className="absolute top-0 h-5 w-5 -translate-x-1/2 sm:h-6 sm:w-6" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }} />
+        <img key={hour.dt} src={iconUrl(hour.icon)} alt="" className="absolute top-0 h-5 w-5 -translate-x-1/2 sm:h-6 sm:w-6" style={{ left: `${hour.pos}%` }} />
       ))}
     </div>
   );
@@ -539,13 +555,11 @@ function IconRow({ hours, tz }: { hours: OMHour[]; tz: number }) {
 function ValueRow({ hours, value, tz }: { hours: OMHour[]; value: (hour: OMHour) => string; tz: number }) {
   /* Same sampling strategy as IconRow so the numbers line up with the icons
      and the time labels, including the 0 and 24 ticks. */
-  const step = Math.max(1, Math.ceil(hours.length / 12));
-  const indices = Array.from(new Set([0, ...Array.from({ length: Math.ceil(hours.length / step) }, (_, i) => i * step), hours.length - 1]));
-  const sample = indices.map((index) => hours[index]).filter((hour): hour is OMHour => Boolean(hour));
+  const sample = sampleHours(hours, tz);
   return (
     <div className="relative h-4 text-center text-[10px] tabular-nums text-detail-muted sm:h-5 sm:text-xs">
       {sample.map((hour) => (
-        <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }}>
+        <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${hour.pos}%` }}>
           {value(hour)}
         </span>
       ))}
