@@ -33,11 +33,10 @@ export type MetricKey =
 
 const HOUR = 3600;
 
-/* Horizontal inset (fraction of the chart width) reserved at each end so the
-   first/last data points and axis labels aren't clipped. The curve, its time
-   labels and the icon/value rows above it all share this mapping so they line up. */
-const AXLE_PAD = 0.05;
-const axleFrac = (hour: number) => (AXLE_PAD + (hour / 24) * (1 - 2 * AXLE_PAD)) * 100;
+/* Map an hour in [0, 24] to the horizontal position inside the chart column.
+   0% and 100% line up with the y-axis ticks so the curve, the time labels
+   and any icon/value rows above the curve all share the same axis. */
+const axleFrac = (hour: number) => (hour / 24) * 100;
 
 function localParts(unix: number, tz: number) {
   const d = new Date((unix + tz) * 1000);
@@ -73,6 +72,7 @@ function Chart({
   format,
   area = true,
   bars = false,
+  header,
 }: {
   points: { h: number; v: number }[];
   color: string;
@@ -81,6 +81,10 @@ function Chart({
   format: (v: number) => string;
   area?: boolean;
   bars?: boolean;
+  /** Optional row(s) shown above the curve (e.g. weather icons, values).
+      Rendered in the same column as the SVG so they line up exactly with
+      the curve, the time labels and the y-axis ticks. */
+  header?: React.ReactNode;
 }) {
   const width = 320;
   const height = 164;
@@ -88,10 +92,17 @@ function Chart({
   const x = (hour: number) => (axleFrac(hour) / 100) * width;
   const y = (value: number) => height - ((value - min) / span) * height;
   const gradientId = useMemo(() => `chart-${Math.random().toString(36).slice(2)}`, []);
-  // Close the line at the "24" tick so the curve always reaches the right edge.
+  /* The data only covers hours 0–23. Extend the curve to the visual 0 and 24
+     edges (mapped to 0% and 100% of the SVG) so the line reaches both axis
+     labels instead of leaving a gap at the right edge. */
   const closed = bars
     ? points
-    : [...points, points.length ? { ...points[points.length - 1], h: 24 } : { h: 0, v: 0 }];
+    : (() => {
+        if (!points.length) return [{ h: 0, v: 0 }];
+        const first = points[0];
+        const last = points[points.length - 1];
+        return [{ h: 0, v: first.v }, ...points, { h: 24, v: last.v }];
+      })();
   const line = closed
     .map((point, index) => `${index ? "L" : "M"}${x(point.h).toFixed(1)} ${y(point.v).toFixed(1)}`)
     .join(" ");
@@ -100,7 +111,8 @@ function Chart({
 
   return (
     <div className="detail-chart-grid">
-      <div className="min-w-0">
+      <div className="detail-chart-col min-w-0">
+        {header}
         <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-44 w-full overflow-visible">
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -142,7 +154,7 @@ function Chart({
           ))}
         </div>
       </div>
-      <div className="flex h-44 flex-col justify-between border-l border-detail-line pl-3 text-right text-xs tabular-nums text-detail-muted">
+      <div className="flex h-44 flex-col justify-between border-l border-detail-line pl-2 text-right text-xs tabular-nums text-detail-muted">
         {ticks.map((tick) => <span key={tick}>{format(tick)}</span>)}
       </div>
     </div>
@@ -263,8 +275,14 @@ export function MetricDetail({
             sub={tempTab === "actual" ? `${T.t("high")} ${Math.round(day.max)}°  ${T.t("low")} ${Math.round(day.min)}°` : `${T.t("actualTemp")} ${Math.round(dayIdx === 0 ? cur.main.temp : dayHours[0].temp)}°`}
             aside={<img src={iconUrl(dayIdx === 0 ? cur.weather[0].icon : day.icon)} alt="" className="h-14 w-14" />}
           />
-          <IconRow hours={dayHours} tz={tz} />
-          <Chart points={points(getTemp)} color="var(--weather-temperature)" min={range.min} max={range.max} format={(value) => `${Math.round(value)}°`} />
+          <Chart
+            points={points(getTemp)}
+            color="var(--weather-temperature)"
+            min={range.min}
+            max={range.max}
+            format={(value) => `${Math.round(value)}°`}
+            header={<IconRow hours={dayHours} tz={tz} />}
+          />
           <SegmentedControl value={tempTab} onChange={setTempTab} left={T.t("actualTemp")} right={T.t("apparentTemp")} />
           <p className="text-base text-detail-muted">{tempTab === "actual" ? T.t("actualTempDesc") : T.t("apparentTempDesc")}</p>
         </div>
@@ -277,8 +295,14 @@ export function MetricDetail({
       return (
         <div className="space-y-6">
           <TopValue big={`${Math.round(current)}`} unit={uvLevel(current)} sub={T.t("whoUvi")} />
-          <ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.uv)}`} tz={tz} />
-          <Chart points={points((hour) => hour.uv)} color="var(--weather-uv)" min={0} max={Math.max(11, Math.max(...values) + 1)} format={(value) => `${Math.round(value)}`} />
+          <Chart
+            points={points((hour) => hour.uv)}
+            color="var(--weather-uv)"
+            min={0}
+            max={Math.max(11, Math.max(...values) + 1)}
+            format={(value) => `${Math.round(value)}`}
+            header={<ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.uv)}`} tz={tz} />}
+          />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天紫外线最高为 ${Math.round(Math.max(...values))}（${uvLevel(Math.max(...values))}）。`, `Peak UV today is ${Math.round(Math.max(...values))} (${uvLevel(Math.max(...values))}).`)} />
         </div>
       );
@@ -290,14 +314,22 @@ export function MetricDetail({
       return (
         <div className="space-y-6">
           <TopValue big={`${Math.round(dayIdx === 0 ? cur.wind.speed : windValues[0])}`} unit={windUnit} sub={`${T.t("gustsLabel")}${Math.round(Math.max(...gustValues))} ${windUnit} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} />
-          <div className="detail-chart-inset relative h-4 text-detail-muted">
-            {dayHours.filter((_, index) => index % 2 === 0).slice(0, 12).map((hour) => (
-              <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }}>
-                <Navigation className="h-3.5 w-3.5" style={{ transform: `rotate(${hour.windDeg + 180}deg)` }} />
-              </span>
-            ))}
-          </div>
-          <Chart points={points((hour) => hour.wind)} color="var(--weather-wind)" min={0} max={Math.max(...gustValues) * 1.15 || 5} format={(value) => `${Math.round(value)}`} />
+          <Chart
+            points={points((hour) => hour.wind)}
+            color="var(--weather-wind)"
+            min={0}
+            max={Math.max(...gustValues) * 1.15 || 5}
+            format={(value) => `${Math.round(value)}`}
+            header={
+              <div className="relative h-4 text-detail-muted">
+                {dayHours.filter((_, index) => index % 2 === 0).slice(0, 12).map((hour) => (
+                  <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }}>
+                    <Navigation className="h-3.5 w-3.5" style={{ transform: `rotate(${hour.windDeg + 180}deg)` }} />
+                  </span>
+                ))}
+              </div>
+            }
+          />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天风速 ${Math.round(Math.min(...windValues))}–${Math.round(Math.max(...windValues))} ${windUnit}，阵风最高 ${Math.round(Math.max(...gustValues))} ${windUnit}。`, `Wind ${Math.round(Math.min(...windValues))}–${Math.round(Math.max(...windValues))} ${windUnit} today, gusting to ${Math.round(Math.max(...gustValues))} ${windUnit}.`)} />
         </div>
       );
@@ -329,8 +361,14 @@ export function MetricDetail({
       return (
         <div className="space-y-7">
           <TopValue big={`${dayIdx === 0 ? cur.main.humidity : average}`} unit="%" sub={copy(`今天平均湿度为 ${average}%。`, `Today's average humidity is ${average}%.`)} />
-          <ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.humidity)}%`} tz={tz} />
-          <Chart points={points((hour) => hour.humidity)} color="var(--weather-humidity)" min={0} max={100} format={(value) => `${Math.round(value)}%`} />
+          <Chart
+            points={points((hour) => hour.humidity)}
+            color="var(--weather-humidity)"
+            min={0}
+            max={100}
+            format={(value) => `${Math.round(value)}%`}
+            header={<ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.humidity)}%`} tz={tz} />}
+          />
           <Section title={copy("每日比较", "Daily Comparison")}>
             <ComparisonBar label={T.t("today")} value={average} max={100} />
             <ComparisonBar label={copy("日内最高", "Daily high")} value={Math.round(Math.max(...values))} max={100} muted />
@@ -346,8 +384,14 @@ export function MetricDetail({
       return (
         <div className="space-y-6">
           <TopValue big={nowKm.toFixed(1)} unit={T.t("km")} sub={visibilityLevel(nowKm)} />
-          <ValueRow hours={dayHours} value={(hour) => `${Math.round((hour.visibility || cur.visibility) / 1000)}`} tz={tz} />
-          <Chart points={points((hour) => (hour.visibility || cur.visibility) / 1000)} color="var(--weather-visibility)" min={0} max={Math.max(...values) * 1.15 || 20} format={(value) => `${Math.round(value)}`} />
+          <Chart
+            points={points((hour) => (hour.visibility || cur.visibility) / 1000)}
+            color="var(--weather-visibility)"
+            min={0}
+            max={Math.max(...values) * 1.15 || 20}
+            format={(value) => `${Math.round(value)}`}
+            header={<ValueRow hours={dayHours} value={(hour) => `${Math.round((hour.visibility || cur.visibility) / 1000)}`} tz={tz} />}
+          />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天能见度在 ${Math.round(Math.min(...values))} 至 ${Math.round(Math.max(...values))} 公里之间。`, `Visibility ranges from ${Math.round(Math.min(...values))} to ${Math.round(Math.max(...values))} km today.`)} />
           <InfoSection title={copy("关于能见度", "About Visibility")} text={copy("能见度表示在当前天气状况下可以清晰看见物体的最远距离。", "Visibility is the greatest distance at which objects can be clearly seen under current conditions.")} />
         </div>
@@ -476,8 +520,8 @@ function TopValue({ big, unit, sub, aside, trend }: { big: string; unit?: string
 function IconRow({ hours, tz }: { hours: OMHour[]; tz: number }) {
   const sample = hours.filter((_, index) => index % Math.max(1, Math.ceil(hours.length / 12)) === 0).slice(0, 12);
   return (
-    <div className="detail-chart-inset relative h-5 sm:h-6">
-      {sample.map((hour) => (
+    <div className="relative h-5 sm:h-6">
+      {sample.filter((hour) => hour.icon).map((hour) => (
         <img key={hour.dt} src={iconUrl(hour.icon)} alt="" className="absolute top-0 h-5 w-5 -translate-x-1/2 sm:h-6 sm:w-6" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }} />
       ))}
     </div>
@@ -487,7 +531,7 @@ function IconRow({ hours, tz }: { hours: OMHour[]; tz: number }) {
 function ValueRow({ hours, value, tz }: { hours: OMHour[]; value: (hour: OMHour) => string; tz: number }) {
   const sample = hours.filter((_, index) => index % Math.max(1, Math.ceil(hours.length / 12)) === 0).slice(0, 12);
   return (
-    <div className="detail-chart-inset relative h-4 text-center text-[10px] tabular-nums text-detail-muted sm:h-5 sm:text-xs">
+    <div className="relative h-4 text-center text-[10px] tabular-nums text-detail-muted sm:h-5 sm:text-xs">
       {sample.map((hour) => (
         <span key={hour.dt} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(localParts(hour.dt, tz).hour)}%` }}>
           {value(hour)}
