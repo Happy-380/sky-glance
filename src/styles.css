@@ -190,18 +190,6 @@
   }
 }
 
-/* Icon/value rows above the curve share the chart's y-axis gutter so they
-   line up horizontally with the curve. We shrink the width (not pad) because
-   `left: %` on absolutely-positioned items is relative to the padding box. */
-.detail-chart-inset {
-  width: calc(100% - 4rem);
-}
-@media (max-width: 420px) {
-  .detail-chart-inset {
-    width: calc(100% - 3.1rem);
-  }
-}
-
 /* ---- Apple-style animations ---- */
 @keyframes detail-fade-in {
   from { opacity: 0; }
