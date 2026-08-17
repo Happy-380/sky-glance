@@ -270,13 +270,39 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Page transition: a quick, gentle crossfade when the route changes. Vertical
+   motion is deliberately left to inner content (e.g. the card stagger) so the
+   two don't compete. */
+.route-enter {
+  animation: route-in 0.25s var(--ease-out) both;
+}
+
+/* Dropdown / menu expand: grows from its trigger (top-right corner where the
+   three-dot button sits), not from its own center. */
+.menu-pop {
+  transform-origin: top right;
+  animation: menu-in 0.18s var(--ease-out) both;
+}
+
+@keyframes route-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes menu-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .detail-sheet-enter,
   .detail-fade-enter,
   .detail-rise,
   .detail-chart-enter,
   .detail-sun-dot,
-  .app-fade-up > * {
+  .app-fade-up > *,
+  .route-enter,
+  .menu-pop {
     animation: none !important; /* clear fill so elements stay fully visible */
   }
 }
