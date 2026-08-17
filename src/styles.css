@@ -191,6 +191,59 @@
 }
 
 /* ---- Apple-style animations ---- */
+/* Easing tokens. Extend these, don't fork new curves per component. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);      /* strong ease-out for UI */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);  /* on-screen A→B movement */
+  --ease-drawer: cubic-bezier(0.22, 1, 0.36, 1);   /* iOS bottom-sheet settle */
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);   /* spring overshoot for the sun dot */
+}
+
+/* Backdrop: pure fade, snappy */
+.detail-fade-enter {
+  animation: detail-fade-in 0.25s var(--ease-out) both;
+}
+
+/* Sheet: slides up from the bottom and settles with a subtle iOS bounce.
+   Spatial consistency — it exits the same way it entered. */
+.detail-sheet-enter {
+  animation: sheet-in 0.5s var(--ease-drawer) both;
+  will-change: transform;
+}
+
+/* Content rises in quickly with a small stagger (30–80ms), not in one block. */
+.detail-rise {
+  animation: rise-in 0.32s var(--ease-out) both;
+}
+.detail-rise-1 { animation-delay: 0.06s; }
+.detail-rise-2 { animation-delay: 0.12s; }
+.detail-rise-3 { animation-delay: 0.18s; }
+.detail-rise-4 { animation-delay: 0.24s; }
+
+/* The chart line arrives a beat later than the text but stays under 400ms. */
+.detail-chart-enter {
+  animation: rise-in 0.4s var(--ease-out) 0.08s both;
+}
+
+/* Sun dot: pops from near-full size, not from nothing. */
+.detail-sun-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pop-in 0.45s var(--ease-pop) 0.24s both;
+}
+
+/* Weather tile grid: each tile staggers in from a modest offset instead of
+   the whole grid moving as one block. Decorative — never blocks interaction. */
+.app-fade-up > * {
+  animation: card-in 0.3s var(--ease-out) both;
+}
+.app-fade-up > *:nth-child(1) { animation-delay: 0ms; }
+.app-fade-up > *:nth-child(2) { animation-delay: 40ms; }
+.app-fade-up > *:nth-child(3) { animation-delay: 80ms; }
+.app-fade-up > *:nth-child(4) { animation-delay: 120ms; }
+.app-fade-up > *:nth-child(5) { animation-delay: 160ms; }
+.app-fade-up > *:nth-child(6) { animation-delay: 200ms; }
+
 @keyframes detail-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -203,49 +256,18 @@
 }
 
 @keyframes rise-in {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes pop-in {
-  0% { opacity: 0; transform: scale(0.4); }
-  100% { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
 }
 
-@keyframes app-fade-up {
-  from { opacity: 0; transform: translateY(16px); }
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
-}
-
-.detail-fade-enter {
-  animation: detail-fade-in 0.32s ease-out both;
-}
-
-.detail-sheet-enter {
-  animation: sheet-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: transform;
-}
-
-.detail-rise {
-  animation: rise-in 0.56s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-.detail-rise-1 { animation-delay: 0.05s; }
-.detail-rise-2 { animation-delay: 0.12s; }
-.detail-rise-3 { animation-delay: 0.19s; }
-.detail-rise-4 { animation-delay: 0.26s; }
-
-.detail-chart-enter {
-  animation: rise-in 0.72s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
-}
-
-.detail-sun-dot {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.28s both;
-}
-
-.app-fade-up {
-  animation: app-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -254,8 +276,8 @@
   .detail-rise,
   .detail-chart-enter,
   .detail-sun-dot,
-  .app-fade-up {
-    animation: none;
+  .app-fade-up > * {
+    animation: none !important; /* clear fill so elements stay fully visible */
   }
 }
 
