@@ -247,6 +247,13 @@ export function WeatherApp() {
                 />
                 <div className="h-px bg-white/10" />
                 <MenuItem
+                  icon={<span className="w-4 text-center text-xs">U</span>}
+                  label={T.t("units")}
+                  to="/units"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div className="h-px bg-white/10" />
+                <MenuItem
                   icon={<List className="h-4 w-4" />}
                   label={T.t("cityList")}
                   to="/cities"

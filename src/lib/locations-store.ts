@@ -84,6 +84,56 @@ export function useActiveId() {
 
 export type Units = "metric" | "imperial";
 
+export type TempUnit = "celsius" | "fahrenheit" | "system";
+export type WindUnit = "beaufort" | "mph" | "kmh" | "ms" | "kn";
+export type PrecipUnit = "mm" | "in";
+export type PressureUnit = "mbar" | "inHg" | "mmHg" | "hpa" | "kpa";
+export type DistanceUnit = "mi" | "km";
+
+export interface UnitSettings {
+  temperature: TempUnit;
+  wind: WindUnit;
+  precipitation: PrecipUnit;
+  pressure: PressureUnit;
+  distance: DistanceUnit;
+}
+
+const DEFAULT_UNITS: UnitSettings = {
+  temperature: "system",
+  wind: "beaufort",
+  precipitation: "mm",
+  pressure: "hpa",
+  distance: "km",
+};
+
+const UNIT_SETTINGS_KEY = "vertex-weather-unit-settings";
+
+export function getUnitSettings(): UnitSettings {
+  try {
+    const raw = localStorage.getItem(UNIT_SETTINGS_KEY);
+    if (!raw) return DEFAULT_UNITS;
+    return { ...DEFAULT_UNITS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_UNITS;
+  }
+}
+
+export function setUnitSettings(s: UnitSettings) {
+  localStorage.setItem(UNIT_SETTINGS_KEY, JSON.stringify(s));
+  window.dispatchEvent(new Event(EVT));
+}
+
+export function useUnitSettings(): UnitSettings {
+  const [s, setS] = useState<UnitSettings>(() => getUnitSettings());
+  useEffect(() => {
+    setS(getUnitSettings());
+    const h = () => setS(getUnitSettings());
+    window.addEventListener(EVT, h);
+    return () => window.removeEventListener(EVT, h);
+  }, []);
+  return s;
+}
+
 export function setUnitsPref(u: Units) {
   localStorage.setItem(UNITS_KEY, u);
   window.dispatchEvent(new Event(EVT));
