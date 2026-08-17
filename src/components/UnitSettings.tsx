@@ -92,7 +92,7 @@ function UnitDropdown<T extends string>({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left text-[15px] hover:bg-white/5"
+        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-white/5"
       >
         <span className="text-white/60">{label}</span>
         <span className="flex items-center gap-1 text-white">
@@ -110,7 +110,7 @@ function UnitDropdown<T extends string>({
             width: pos.width,
             zIndex: 9999,
           }}
-          className="overflow-hidden rounded-xl border border-white/10 bg-[#1c1c1e] shadow-2xl backdrop-blur-xl"
+          className="overflow-hidden rounded-lg border border-white/10 bg-[#1c1c1e] shadow-xl backdrop-blur-xl"
         >
           {options.map((opt) => {
             const isSelected = opt.value === value;
@@ -119,7 +119,7 @@ function UnitDropdown<T extends string>({
               <button
                 key={opt.value}
                 onClick={() => { onChange(opt.value); setOpen(false); }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-[15px] hover:bg-white/10"
+                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-white/10"
               >
                 <span className="w-4">
                   {isSelected && <Check className="h-4 w-4 text-white" />}
