@@ -78,13 +78,16 @@ function UnitDropdown<T extends string>({
     if (!open) return;
     const rect = ref.current?.getBoundingClientRect();
     if (!rect) return;
-    const menuHeight = options.length * 44 + 16;
+    const itemH = 36;
+    const menuHeight = options.length * itemH + 8;
+    const maxW = Math.min(window.innerWidth - 32, 360);
+    const menuWidth = Math.min(Math.max(rect.width * 0.6, 220), maxW);
     const spaceBelow = window.innerHeight - rect.bottom - 10;
     const shouldFlip = spaceBelow < menuHeight + 20;
     setPos({
       top: shouldFlip ? rect.top - menuHeight - 4 : rect.bottom + 4,
-      left: rect.left,
-      width: rect.width,
+      left: Math.max(16, rect.right - menuWidth),
+      width: menuWidth,
     });
   }, [open, options.length]);
 
