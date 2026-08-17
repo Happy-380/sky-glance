@@ -6,6 +6,11 @@ import type { CurrentWeather, DailySummary } from "@/lib/weather";
 import { degToCompass } from "@/lib/weather";
 import { formatTimeL } from "@/lib/i18n";
 import type { MetricKey } from "@/components/MetricDetail";
+import {
+  convertWind, windUnitLabel, convertPressure, convertDistance,
+  formatWind, resolveTemperatureUnit,
+  type UnitSettings,
+} from "@/lib/locations-store";
 
 type T = ReturnType<typeof import("@/lib/i18n").makeT>;
 
@@ -105,7 +110,7 @@ function SunArc({ progress }: { progress: number }) {
 }
 
 export function WeatherCards({
-  cur, daily, T, lang, tz, units, air, pop, todayHi, pressureTrend = 0, onOpen,
+  cur, daily, T, lang, tz, units, unitSettings, air, pop, todayHi, pressureTrend = 0, onOpen,
 }: {
   onOpen?: (m: MetricKey) => void;
   cur: CurrentWeather;
@@ -114,12 +119,19 @@ export function WeatherCards({
   lang: "zh" | "en";
   tz: number;
   units: "metric" | "imperial";
+  unitSettings: UnitSettings;
   air?: { aqi: number; pm2_5: number; pm10: number; o3: number };
   pop: number;
   todayHi: number;
   pressureTrend?: number;
 }) {
-  const windUnit = units === "metric" ? (lang === "zh" ? "米/秒" : "m/s") : "mph";
+  const tempUnit = resolveTemperatureUnit(unitSettings, units);
+  const toDisplayTemp = (celsius: number) => {
+    if (tempUnit === "f") return Math.round(celsius * 9 / 5 + 32);
+    return Math.round(celsius);
+  };
+  const tempSuffix = tempUnit === "f" ? "°F" : "°";
+  const windUnitStr = windUnitLabel(unitSettings.wind, lang);
   const avgHigh = daily.length
     ? daily.reduce((s, d) => s + d.max, 0) / daily.length
     : cur.main.temp_max;
@@ -133,25 +145,25 @@ export function WeatherCards({
     <section className="app-fade-up mx-auto grid w-full max-w-[836px] grid-cols-2 items-start gap-3 md:grid-cols-4">
       {/* 平均 */}
       <Card onClick={() => onOpen?.("conditions")} title={T.t("average")} icon={<Icon><TrendingUp /></Icon>}>
-        <Big>{diff >= 0 ? "+" : ""}{diff}°</Big>
+        <Big>{diff >= 0 ? "+" : ""}{toDisplayTemp(diff)}{tempSuffix}</Big>
         <p className="mt-[3cqh] text-white/85" style={{ fontSize: FS.body }}>
           {diff >= 0 ? T.t("aboveAvgHigh") : T.t("belowAvgHigh")}
         </p>
         <div className="mt-auto space-y-[2cqh] pt-[4cqh] text-white/70" style={{ fontSize: FS.body }}>
           <div className="flex justify-between gap-2">
             <span>{T.t("todayLabel")}</span>
-            <span className="font-medium text-white">{T.t("maxShort")} {todayHi}°</span>
+            <span className="font-medium text-white">{T.t("maxShort")} {toDisplayTemp(todayHi)}{tempSuffix}</span>
           </div>
           <div className="flex justify-between gap-2">
             <span>{T.t("avgLabel")}</span>
-            <span className="font-medium text-white">{T.t("maxShort")} {Math.round(avgHigh)}°</span>
+            <span className="font-medium text-white">{T.t("maxShort")} {toDisplayTemp(avgHigh)}{tempSuffix}</span>
           </div>
         </div>
       </Card>
 
       {/* 体感温度 */}
       <Card onClick={() => onOpen?.("conditions")} title={T.t("feelsLike")} icon={<Icon><Thermometer /></Icon>}>
-        <Big>{Math.round(cur.main.feels_like)}°</Big>
+        <Big>{toDisplayTemp(cur.main.feels_like)}{tempSuffix}</Big>
         <p className="mt-auto pt-[4cqh] text-white/85" style={{ fontSize: FS.body }}>
           {Math.abs(feelsDiff) < 1
             ? T.t("feelsSame")
@@ -165,15 +177,15 @@ export function WeatherCards({
       <Card onClick={() => onOpen?.("wind")} title={T.t("wind")} icon={<Icon><Wind /></Icon>} span={2}>
         <div className="flex items-center gap-[4cqh]">
           <div className="min-w-0 flex-1" style={{ fontSize: FS.body }}>
-            <Row label={T.t("windSpeed")} value={`${cur.wind.speed.toFixed(1)} ${windUnit}`} />
-            <Row label={T.t("gusts")} value={`${Math.round(cur.wind.speed * 1.4)} ${windUnit}`} />
+            <Row label={T.t("windSpeed")} value={formatWind(cur.wind.speed, unitSettings.wind, lang)} />
+            <Row label={T.t("gusts")} value={formatWind(cur.wind.speed * 1.4, unitSettings.wind, lang)} />
             <Row
               label={T.t("direction")}
               value={`${T.compass(degToCompass(cur.wind.deg))} ${Math.round(cur.wind.deg)}°`}
               last
             />
           </div>
-          <WindDial deg={cur.wind.deg} value={cur.wind.speed.toFixed(0)} />
+          <WindDial deg={cur.wind.deg} value={convertWind(cur.wind.speed, unitSettings.wind).value.toFixed(0)} />
         </div>
       </Card>
 
@@ -223,9 +235,9 @@ export function WeatherCards({
 
       {/* 能见度 */}
       <Card onClick={() => onOpen?.("visibility")} title={T.t("visibility")} icon={<Icon><Eye /></Icon>}>
-        <Big>{(cur.visibility / 1000).toFixed(1)}</Big>
+        <Big>{convertDistance(cur.visibility / 1000, unitSettings.distance).value.toFixed(1)}</Big>
         <div className="mt-[1cqh] text-white/70" style={{ fontSize: FS.tiny }}>
-          {lang === "zh" ? "公里" : "km"}
+          {convertDistance(cur.visibility / 1000, unitSettings.distance).label}
         </div>
         <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>
           {T.t("cloudiness")} {cur.clouds.all}%
@@ -237,7 +249,7 @@ export function WeatherCards({
       <Card onClick={() => onOpen?.("humidity")} title={T.t("humidity")} icon={<Icon><Droplets /></Icon>}>
         <Big>{cur.main.humidity}%</Big>
         <p className="mt-auto pt-[3cqh] text-white/80" style={{ fontSize: FS.body }}>
-          {T.t("feelsLike")} {Math.round(cur.main.feels_like)}°
+          {T.t("feelsLike")} {toDisplayTemp(cur.main.feels_like)}{tempSuffix}
         </p>
       </Card>
 
@@ -246,7 +258,8 @@ export function WeatherCards({
         <PressureGauge
           value={cur.main.pressure}
           trend={pressureTrend}
-          unit={lang === "zh" ? "百帕" : "hPa"}
+          displayValue={convertPressure(cur.main.pressure, unitSettings.pressure).value.toFixed(0)}
+          unit={convertPressure(cur.main.pressure, unitSettings.pressure).label}
           lowLabel={T.t("pressLow")}
           highLabel={T.t("pressHigh")}
         />
@@ -280,8 +293,8 @@ function Row({ label, value, last }: { label: string; value: string; last?: bool
 }
 
 function PressureGauge({
-  value, trend, unit, lowLabel, highLabel,
-}: { value: number; trend: number; unit: string; lowLabel: string; highLabel: string }) {
+  value, trend, displayValue, unit, lowLabel, highLabel,
+}: { value: number; trend: number; displayValue?: string; unit: string; lowLabel: string; highLabel: string }) {
   const MIN = 960;
   const MAX = 1060;
   const p = Math.min(Math.max((value - MIN) / (MAX - MIN), 0), 1);
@@ -319,7 +332,7 @@ function PressureGauge({
           )}
         </svg>
         <div className="font-medium leading-none" style={{ fontSize: "clamp(13px, 14cqh, 30px)" }}>
-          {value.toLocaleString()}
+          {displayValue ?? value.toLocaleString()}
         </div>
         <div className="text-white/85" style={{ fontSize: FS.tiny }}>{unit}</div>
       </div>
