@@ -17,10 +17,10 @@ type T = ReturnType<typeof import("@/lib/i18n").makeT>;
 /* Container-query sizes are expressed in cqh so 1×1 and 2×1 tiles scale
    identically (a 2×1 tile is half as tall as it is wide). */
 const FS = {
-  label: "clamp(11px, 7.5cqh, 18px)",
-  big: "clamp(22px, 24cqh, 56px)",
-  body: "clamp(10px, 6.5cqh, 16px)",
-  tiny: "clamp(9px, 5.5cqh, 14px)",
+  label: "clamp(10px, 6cqh, 15px)",
+  big: "clamp(18px, 17cqh, 40px)",
+  body: "clamp(9px, 5.5cqh, 14px)",
+  tiny: "clamp(8px, 5cqh, 12px)",
 };
 
 function Card({
@@ -33,13 +33,13 @@ function Card({
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
-      className={`min-h-0 min-w-0 self-start overflow-hidden rounded-3xl border border-white/15 bg-white/10 backdrop-blur-xl ${
+      className={`min-h-0 min-w-0 self-start overflow-hidden rounded-2xl border border-white/15 bg-white/10 backdrop-blur-xl ${
         onClick ? "cursor-pointer transition hover:bg-white/15 active:scale-[0.98]" : ""
       } ${span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"}`}
     >
-      <div className="flex h-full w-full min-h-0 min-w-0 flex-col p-[6cqh]">
+      <div className="flex h-full w-full min-h-0 min-w-0 flex-col p-[5cqh]">
         <div
-          className="mb-[4cqh] flex items-center gap-1.5 font-medium text-white/70"
+          className="mb-[3cqh] flex items-center gap-1.5 font-medium text-white/70"
           style={{ fontSize: FS.label }}
         >
           <span className="flex shrink-0 items-center [&>span>svg]:h-[1.15em] [&>span>svg]:w-[1.15em]">
@@ -70,7 +70,7 @@ function Icon({ children }: { children: React.ReactNode }) {
 
 function WindDial({ deg, value }: { deg: number; value: string }) {
   return (
-    <div className="relative aspect-square h-[74cqh] shrink-0">
+    <div className="relative aspect-square h-[68cqh] shrink-0">
       <svg viewBox="0 0 100 100" className="h-full w-full">
         {Array.from({ length: 60 }).map((_, i) => (
           <line
@@ -88,7 +88,7 @@ function WindDial({ deg, value }: { deg: number; value: string }) {
       </svg>
       <div
         className="absolute inset-0 flex items-center justify-center font-medium"
-        style={{ fontSize: "clamp(13px, 16cqh, 30px)" }}
+        style={{ fontSize: "clamp(12px, 14cqh, 26px)" }}
       >
         {value}
       </div>
@@ -101,7 +101,7 @@ function SunArc({ progress }: { progress: number }) {
   const x = 4 + p * 92;
   const y = 30 - Math.sin(p * Math.PI) * 22;
   return (
-    <svg viewBox="0 0 100 44" className="mt-[4cqh] h-[26cqh] w-full">
+    <svg viewBox="0 0 100 44" className="mt-[3cqh] h-[22cqh] w-full">
       <path d="M4 30 Q50 -10 96 30" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
       <line x1="0" y1="34" x2="100" y2="34" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
       <circle cx={x} cy={y} r="3.5" fill="white" />
@@ -142,7 +142,7 @@ export function WeatherCards({
   const aqiPct = air ? ((air.aqi - 1) / 4) * 100 : 0;
 
   return (
-    <section className="app-fade-up mx-auto grid w-full max-w-[836px] grid-cols-2 items-start gap-3 md:grid-cols-4">
+    <section className="app-fade-up mx-auto grid w-full max-w-[836px] grid-cols-2 items-start gap-2.5 md:grid-cols-4">
       {/* 平均 */}
       <Card onClick={() => onOpen?.("conditions")} title={T.t("average")} icon={<Icon><TrendingUp /></Icon>}>
         <Big>{diff >= 0 ? "+" : ""}{toDisplayTemp(diff)}{tempSuffix}</Big>
@@ -324,14 +324,14 @@ function PressureGauge({
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <svg viewBox="0 0 24 24" className="h-[13cqh] w-[13cqh]" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           {dir === "flat" ? (
-            <><path d="M4 12h16" /><path d="M15 7l5 5-5 5" /></>
+            <><path d="M4 9h16" /><path d="M4 15h16" /></>
           ) : dir === "up" ? (
             <><path d="M12 20V4" /><path d="M5 11l7-7 7 7" /></>
           ) : (
             <><path d="M12 4v16" /><path d="M5 13l7 7 7-7" /></>
           )}
         </svg>
-        <div className="font-medium leading-none" style={{ fontSize: "clamp(13px, 14cqh, 30px)" }}>
+        <div className="font-medium leading-none" style={{ fontSize: "clamp(12px, 12cqh, 24px)" }}>
           {displayValue ?? value.toLocaleString()}
         </div>
         <div className="text-white/85" style={{ fontSize: FS.tiny }}>{unit}</div>
