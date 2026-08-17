@@ -17,6 +17,11 @@ import type { OMDay, OMHour } from "@/lib/openmeteo";
 import type { CurrentWeather } from "@/lib/weather";
 import { degToCompass, iconUrl } from "@/lib/weather";
 import { formatTimeL, type Lang } from "@/lib/i18n";
+import {
+  convertWind, windUnitLabel, convertPressure, convertDistance,
+  convertPrecip, resolveTemperatureUnit,
+  type UnitSettings,
+} from "@/lib/locations-store";
 
 type T = ReturnType<typeof import("@/lib/i18n").makeT>;
 
@@ -192,6 +197,7 @@ export function MetricDetail({
   lang,
   T,
   units,
+  unitSettings,
   cur,
   air,
 }: {
@@ -203,6 +209,7 @@ export function MetricDetail({
   lang: Lang;
   T: T;
   units: "metric" | "imperial";
+  unitSettings: UnitSettings;
   cur: CurrentWeather;
   air?: { aqi: number; pm2_5: number; pm10: number; o3: number };
 }) {
@@ -226,7 +233,13 @@ export function MetricDetail({
     };
   }, [onClose]);
 
-  const windUnit = units === "metric" ? (lang === "zh" ? "米/秒" : "m/s") : "mph";
+  const tempUnit = resolveTemperatureUnit(unitSettings, units);
+  const toDisplayTemp = (celsius: number) => {
+    if (tempUnit === "f") return Math.round(celsius * 9 / 5 + 32);
+    return Math.round(celsius);
+  };
+  const tempSuffix = tempUnit === "f" ? "°F" : "°";
+  const windUnitStr = windUnitLabel(unitSettings.wind, lang);
   const day = days[dayIdx];
   const dayHours = useMemo(() => {
     if (!day) return [];
@@ -292,8 +305,8 @@ export function MetricDetail({
       return (
         <div className="space-y-3">
           <TopValue
-            big={`${Math.round(dayIdx === 0 ? (tempTab === "actual" ? cur.main.temp : cur.main.feels_like) : values[0])}°`}
-            sub={tempTab === "actual" ? `${T.t("high")} ${Math.round(day.max)}°  ${T.t("low")} ${Math.round(day.min)}°` : `${T.t("actualTemp")} ${Math.round(dayIdx === 0 ? cur.main.temp : dayHours[0].temp)}°`}
+            big={`${toDisplayTemp(dayIdx === 0 ? (tempTab === "actual" ? cur.main.temp : cur.main.feels_like) : values[0])}${tempSuffix}`}
+            sub={tempTab === "actual" ? `${T.t("high")} ${toDisplayTemp(day.max)}${tempSuffix}  ${T.t("low")} ${toDisplayTemp(day.min)}${tempSuffix}` : `${T.t("actualTemp")} ${toDisplayTemp(dayIdx === 0 ? cur.main.temp : dayHours[0].temp)}${tempSuffix}`}
             inlineIcon={<img src={iconUrl(dayIdx === 0 ? cur.weather[0].icon : day.icon)} alt="" className="h-12 w-12 sm:h-14 sm:w-14" />}
             rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />}
           />
@@ -302,7 +315,7 @@ export function MetricDetail({
             color="var(--weather-temperature)"
             min={range.min}
             max={range.max}
-            format={(value) => `${Math.round(value)}°`}
+            format={(value) => `${toDisplayTemp(value)}${tempSuffix}`}
             header={<IconRow hours={dayHours} tz={tz} />}
           />
           <SegmentedControl value={tempTab} onChange={setTempTab} left={T.t("actualTemp")} right={T.t("apparentTemp")} />
@@ -333,15 +346,19 @@ export function MetricDetail({
     if (key === "wind") {
       const windValues = dayHours.map((hour) => hour.wind);
       const gustValues = dayHours.map((hour) => hour.gust);
+      const curWind = convertWind(dayIdx === 0 ? cur.wind.speed : windValues[0], unitSettings.wind);
+      const maxGust = convertWind(Math.max(...gustValues), unitSettings.wind);
+      const minWind = convertWind(Math.min(...windValues), unitSettings.wind);
+      const maxWind = convertWind(Math.max(...windValues), unitSettings.wind);
       return (
         <div className="space-y-3">
-          <TopValue big={`${Math.round(dayIdx === 0 ? cur.wind.speed : windValues[0])}`} unit={windUnit} sub={`${T.t("gustsLabel")}${Math.round(Math.max(...gustValues))} ${windUnit} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={`${curWind.value.toFixed(0)}`} unit={windUnitStr} sub={`${T.t("gustsLabel")}${maxGust.value.toFixed(0)} ${windUnitStr} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
-            points={points((hour) => hour.wind)}
+            points={points((hour) => convertWind(hour.wind, unitSettings.wind).value)}
             color="var(--weather-wind)"
             min={0}
-            max={Math.max(...gustValues) * 1.15 || 5}
-            format={(value) => `${Math.round(value)}`}
+            max={Math.max(convertWind(Math.max(...gustValues), unitSettings.wind).value * 1.15, 5)}
+            format={(value) => `${value.toFixed(0)}`}
             header={
               <div className="relative h-8 text-detail-muted">
                 {sampleHours(dayHours, tz).map((hour) => (
@@ -352,7 +369,7 @@ export function MetricDetail({
               </div>
             }
           />
-          <InfoSection title={T.t("dailySummary")} text={copy(`今天风速 ${Math.round(Math.min(...windValues))}–${Math.round(Math.max(...windValues))} ${windUnit}，阵风最高 ${Math.round(Math.max(...gustValues))} ${windUnit}。`, `Wind ${Math.round(Math.min(...windValues))}–${Math.round(Math.max(...windValues))} ${windUnit} today, gusting to ${Math.round(Math.max(...gustValues))} ${windUnit}.`)} />
+          <InfoSection title={T.t("dailySummary")} text={copy(`今天风速 ${minWind.value.toFixed(0)}–${maxWind.value.toFixed(0)} ${windUnitStr}，阵风最高 ${maxGust.value.toFixed(0)} ${windUnitStr}。`, `Wind ${minWind.value.toFixed(0)}–${maxWind.value.toFixed(0)} ${windUnitStr} today, gusting to ${maxGust.value.toFixed(0)} ${windUnitStr}.`)} />
         </div>
       );
     }
@@ -360,18 +377,19 @@ export function MetricDetail({
     if (key === "precip") {
       const total = dayHours.reduce((sum, hour) => sum + hour.precip, 0);
       const maximum = Math.max(...dayHours.map((hour) => hour.precip), 1);
+      const totalConverted = convertPrecip(total, unitSettings.precipitation);
       return (
         <div className="space-y-5">
           <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} />
           <Section title={T.t("precipTotal")}>
             <StatRows rows={[
-              [copy("过去 24 小时", "Past 24 hours"), copy("降水", "Precipitation"), `0 ${T.t("mm")}`],
-              [copy("未来 24 小时", "Next 24 hours"), T.t("rain"), `${total.toFixed(total >= 10 ? 0 : 1)} ${T.t("mm")}`],
+              [copy("过去 24 小时", "Past 24 hours"), copy("降水", "Precipitation"), `0 ${totalConverted.label}`],
+              [copy("未来 24 小时", "Next 24 hours"), T.t("rain"), `${totalConverted.value.toFixed(totalConverted.value >= 10 ? 0 : 1)} ${totalConverted.label}`],
             ]} />
           </Section>
-          {total > 0 && <Chart points={points((hour) => hour.precip)} color="var(--weather-rain)" min={0} max={maximum * 1.2} format={(value) => value.toFixed(1)} bars />}
-          <InfoSection title={T.t("dailySummary")} text={copy(`今天的降水总量预计为 ${total.toFixed(1)} 毫米。`, `Total precipitation today is forecast to be ${total.toFixed(1)} mm.`)} />
+          {total > 0 && <Chart points={points((hour) => convertPrecip(hour.precip, unitSettings.precipitation).value)} color="var(--weather-rain)" min={0} max={convertPrecip(maximum, unitSettings.precipitation).value * 1.2} format={(value) => value.toFixed(1)} bars />}
+          <InfoSection title={T.t("dailySummary")} text={copy(`今天的降水总量预计为 ${totalConverted.value.toFixed(1)} ${totalConverted.label === "in" ? "英寸" : "毫米"}。`, `Total precipitation today is forecast to be ${totalConverted.value.toFixed(1)} ${totalConverted.label}.`)} />
           <InfoSection title={copy("关于降水强度", "About Precipitation Intensity")} text={copy("降水强度表示每小时降雨或降雪的总量，可用于判断降水体感和持续程度。", "Precipitation intensity is the hourly rain or snow amount and indicates how strongly precipitation may be felt.")} />
         </div>
       );
@@ -403,18 +421,21 @@ export function MetricDetail({
     if (key === "visibility") {
       const values = dayHours.map((hour) => (hour.visibility || cur.visibility) / 1000);
       const nowKm = dayIdx === 0 ? cur.visibility / 1000 : values[0];
+      const nowConverted = convertDistance(nowKm, unitSettings.distance);
+      const minVal = convertDistance(Math.min(...values), unitSettings.distance);
+      const maxVal = convertDistance(Math.max(...values), unitSettings.distance);
       return (
         <div className="space-y-3">
-          <TopValue big={nowKm.toFixed(1)} unit={T.t("km")} sub={visibilityLevel(nowKm)} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={nowConverted.value.toFixed(1)} unit={nowConverted.label} sub={visibilityLevel(nowKm)} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
-            points={points((hour) => (hour.visibility || cur.visibility) / 1000)}
+            points={points((hour) => convertDistance((hour.visibility || cur.visibility) / 1000, unitSettings.distance).value)}
             color="var(--weather-visibility)"
             min={0}
-            max={Math.max(...values) * 1.15 || 20}
-            format={(value) => `${Math.round(value)}`}
-            header={<ValueRow hours={dayHours} value={(hour) => `${Math.round((hour.visibility || cur.visibility) / 1000)}`} tz={tz} />}
+            max={Math.max(convertDistance(Math.max(...values), unitSettings.distance).value * 1.15, 20)}
+            format={(value) => `${value.toFixed(0)}`}
+            header={<ValueRow hours={dayHours} value={(hour) => `${convertDistance((hour.visibility || cur.visibility) / 1000, unitSettings.distance).value.toFixed(0)}`} tz={tz} />}
           />
-          <InfoSection title={T.t("dailySummary")} text={copy(`今天能见度在 ${Math.round(Math.min(...values))} 至 ${Math.round(Math.max(...values))} 公里之间。`, `Visibility ranges from ${Math.round(Math.min(...values))} to ${Math.round(Math.max(...values))} km today.`)} />
+          <InfoSection title={T.t("dailySummary")} text={copy(`今天能见度在 ${minVal.value.toFixed(0)} 至 ${maxVal.value.toFixed(0)} ${nowConverted.label}之间。`, `Visibility ranges from ${minVal.value.toFixed(0)} to ${maxVal.value.toFixed(0)} ${nowConverted.label} today.`)} />
           <InfoSection title={copy("关于能见度", "About Visibility")} text={copy("能见度表示在当前天气状况下可以清晰看见物体的最远距离。", "Visibility is the greatest distance at which objects can be clearly seen under current conditions.")} />
         </div>
       );
@@ -426,11 +447,13 @@ export function MetricDetail({
       const trend = values.at(-1)! - values[0];
       const trendLabel = trend > 1 ? T.t("trendRising") : trend < -1 ? T.t("trendFalling") : T.t("trendSteady");
       const average = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+      const curPressure = convertPressure(cur.main.pressure, unitSettings.pressure);
+      const avgPressure = convertPressure(average, unitSettings.pressure);
       return (
         <div className="space-y-5">
-          <TopValue big={Math.round(dayIdx === 0 ? cur.main.pressure : values[0]).toLocaleString()} unit={T.t("hPa")} sub={trendLabel} trend={trend} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
-          <Chart points={points((hour) => hour.pressure || cur.main.pressure)} color="var(--weather-pressure)" min={range.min} max={range.max} format={(value) => `${Math.round(value)}`} />
-          <InfoSection title={T.t("dailySummary")} text={copy(`当前气压为 ${cur.main.pressure} 百帕，${trendLabel}。今天平均气压约为 ${average} 百帕。`, `Pressure is ${cur.main.pressure} hPa and ${trendLabel.toLowerCase()}. Today's average is about ${average} hPa.`)} />
+          <TopValue big={Math.round(curPressure.value).toLocaleString()} unit={curPressure.label} sub={trendLabel} trend={trend} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <Chart points={points((hour) => convertPressure(hour.pressure || cur.main.pressure, unitSettings.pressure).value)} color="var(--weather-pressure)" min={convertPressure(range.min, unitSettings.pressure).value} max={convertPressure(range.max, unitSettings.pressure).value} format={(value) => `${Math.round(value)}`} />
+          <InfoSection title={T.t("dailySummary")} text={copy(`当前气压为 ${Math.round(curPressure.value)} ${curPressure.label}，${trendLabel}。今天平均气压约为 ${Math.round(avgPressure.value)} ${avgPressure.label}。`, `Pressure is ${Math.round(curPressure.value)} ${curPressure.label} and ${trendLabel.toLowerCase()}. Today's average is about ${Math.round(avgPressure.value)} ${avgPressure.label}.`)} />
           <InfoSection title={copy("关于气压", "About Pressure")} text={copy("气压的显著变化可用于预测天气变化。气压降低可能表示雨雪即将来临，气压升高则可能表示天气将转好。", "Significant pressure changes can help predict weather. Falling pressure may signal rain or snow, while rising pressure can indicate improving conditions.")} />
         </div>
       );

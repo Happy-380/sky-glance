@@ -11,7 +11,8 @@ import {
 } from "@/lib/weather";
 import { getOpenMeteo, type OMDay, type OMHour } from "@/lib/openmeteo";
 import {
-  useLocations, useActiveId, useUnits, setUnitsPref, makeId,
+  useLocations, useActiveId, useUnits, useUnitSettings, setUnitsPref, makeId,
+  convertWind, windUnitLabel, formatWind, formatPrecip, resolveTemperatureUnit,
   type SavedLocation,
 } from "@/lib/locations-store";
 import { detectLang, makeT, formatHourL, formatDayL, formatTimeL, isNightAt } from "@/lib/i18n";
@@ -39,6 +40,8 @@ export function WeatherApp() {
   const locations = useLocations();
   const activeId = useActiveId();
   const units = useUnits();
+  const unitSettings = useUnitSettings();
+  const tempUnit = resolveTemperatureUnit(unitSettings, units);
   const [menuOpen, setMenuOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("weather");
@@ -134,7 +137,7 @@ export function WeatherApp() {
     return b - a;
   })();
 
-  const windUnit = units === "metric" ? (lang === "zh" ? "米/秒" : "m/s") : "mph";
+  const windUnit = windUnitLabel(unitSettings.wind, lang);
 
   const night = current.data
     ? isNightAt(current.data.dt, current.data.sys.sunrise, current.data.sys.sunset)
@@ -154,10 +157,11 @@ export function WeatherApp() {
     const maxWind = hourly.length
       ? Math.max(...hourly.slice(0, 12).map((h) => h.wind))
       : current.data.wind.speed;
+    const maxWindConverted = convertWind(maxWind, unitSettings.wind).value;
     const desc = current.data.weather[0].description;
-    if (lang === "zh") return `今天将持续${desc}。阵风风速最高 ${maxWind.toFixed(0)} ${windUnit}。`;
-    return `${desc.charAt(0).toUpperCase() + desc.slice(1)} conditions today. Wind gusts up to ${maxWind.toFixed(0)} ${windUnit}.`;
-  }, [current.data, hourly, lang, windUnit]);
+    if (lang === "zh") return `今天将持续${desc}。阵风风速最高 ${maxWindConverted.toFixed(0)} ${windUnit}。`;
+    return `${desc.charAt(0).toUpperCase() + desc.slice(1)} conditions today. Wind gusts up to ${maxWindConverted.toFixed(0)} ${windUnit}.`;
+  }, [current.data, hourly, lang, windUnit, unitSettings.wind]);
 
   const rangeMin = daily.length ? Math.min(...daily.map((d) => d.min)) : 0;
   const rangeMax = daily.length ? Math.max(...daily.map((d) => d.max)) : 1;
@@ -167,6 +171,12 @@ export function WeatherApp() {
 
   const todayHi = daily.length ? Math.round(daily[0].max) : Math.round(current.data?.main.temp ?? 0);
   const todayLo = daily.length ? Math.round(daily[0].min) : Math.round(current.data?.main.temp ?? 0);
+
+  const toDisplayTemp = (celsius: number) => {
+    if (tempUnit === "f") return Math.round(celsius * 9 / 5 + 32);
+    return Math.round(celsius);
+  };
+  const tempSuffix = tempUnit === "f" ? "°F" : "°";
 
   const highlights = useMemo(
     () =>
@@ -286,16 +296,16 @@ export function WeatherApp() {
                 <h1 className="mt-1 text-3xl font-medium tracking-tight md:text-4xl">{active.name}</h1>
                 <div className="mt-1 flex items-start justify-center">
                   <span className="font-thin leading-none tracking-tighter" style={{ fontSize: "clamp(72px, 22vw, 120px)" }}>
-                    {Math.round(current.data.main.temp)}
+                    {toDisplayTemp(current.data.main.temp)}
                   </span>
-                  <span className="mt-3 font-thin text-white/85" style={{ fontSize: "clamp(28px, 8vw, 42px)" }}>°</span>
+                  <span className="mt-3 font-thin text-white/85" style={{ fontSize: "clamp(28px, 8vw, 42px)" }}>{tempSuffix}</span>
                 </div>
                 <p className="mt-1 text-base capitalize text-white/90">
                   {current.data.weather[0].description}
                 </p>
                 <div className="mt-1 flex items-center justify-center gap-4 text-sm text-white/90">
-                  <span><span className="text-white/70">{T.t("high")}</span> {todayHi}°</span>
-                  <span><span className="text-white/70">{T.t("low")}</span> {todayLo}°</span>
+                  <span><span className="text-white/70">{T.t("high")}</span> {toDisplayTemp(todayHi)}{tempSuffix}</span>
+                  <span><span className="text-white/70">{T.t("low")}</span> {toDisplayTemp(todayLo)}{tempSuffix}</span>
                 </div>
               </section>
 
@@ -372,7 +382,9 @@ export function WeatherApp() {
                             {mode === "wind" && (
                               <>
                                 <div className="flex h-11 w-9 flex-col items-center justify-center rounded-lg border border-white/15 bg-white/15">
-                                  <span className="text-sm font-semibold leading-none">{Math.round(h.wind)}</span>
+                                  <span className="text-sm font-semibold leading-none">
+                                    {convertWind(h.wind, unitSettings.wind).value.toFixed(unitSettings.wind === "beaufort" ? 0 : 0)}
+                                  </span>
                                   <span className="mt-0.5 text-[9px] leading-none text-white/70">{windUnit}</span>
                                 </div>
                                 <Navigation
@@ -407,7 +419,7 @@ export function WeatherApp() {
 
                           {mode === "weather" && (
                             <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
-                              <span className="w-8 shrink-0 text-right text-white/60">{Math.round(d.min)}°</span>
+                              <span className="w-8 shrink-0 text-right text-white/60">{toDisplayTemp(d.min)}{tempSuffix}</span>
                               <div className="relative h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
                                 <div
                                   className="absolute top-0 h-full rounded-full"
@@ -418,7 +430,7 @@ export function WeatherApp() {
                                   }}
                                 />
                               </div>
-                              <span className="w-8 shrink-0 text-white">{Math.round(d.max)}°</span>
+                              <span className="w-8 shrink-0 text-white">{toDisplayTemp(d.max)}{tempSuffix}</span>
                             </div>
                           )}
 
@@ -433,7 +445,7 @@ export function WeatherApp() {
                               <span className="w-12 shrink-0 text-right text-sky-100">{pop}%</span>
                               {d.precip !== undefined && (
                                 <span className="w-14 shrink-0 text-right text-xs text-white/60">
-                                  {d.precip.toFixed(1)}mm
+                                  {formatPrecip(d.precip, unitSettings.precipitation)}
                                 </span>
                               )}
                             </div>
@@ -452,7 +464,7 @@ export function WeatherApp() {
                                 />
                               </div>
                               <span className="flex w-16 shrink-0 items-baseline justify-end gap-1 text-right text-white sm:w-20">
-                                {wind}
+                                {convertWind(wind, unitSettings.wind).value.toFixed(0)}
                                 <span className="text-xs text-white/60">{windUnit}</span>
                               </span>
                             </div>
@@ -472,6 +484,7 @@ export function WeatherApp() {
                 lang={lang}
                 tz={tz}
                 units={units}
+                unitSettings={unitSettings}
                 pop={hourly[0]?.pop ?? 0}
                 todayHi={todayHi}
                 pressureTrend={pressureTrend}
@@ -498,6 +511,7 @@ export function WeatherApp() {
                   lang={lang}
                   T={T}
                   units={units}
+                  unitSettings={unitSettings}
                   cur={current.data}
                   air={
                     air.data
