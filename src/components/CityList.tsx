@@ -82,7 +82,7 @@ export function CityListPanel({
             <MoreHorizontal className="h-4 w-4" />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-full z-40 mt-2 w-52 overflow-hidden rounded-2xl border border-white/15 bg-black/60 text-sm backdrop-blur-2xl shadow-2xl">
+            <div className="menu-pop absolute right-0 top-full z-40 mt-2 w-52 overflow-hidden rounded-2xl border border-white/15 bg-black/60 text-sm backdrop-blur-2xl shadow-2xl">
               <button
                 onClick={() => { setEditing((v) => !v); setMenuOpen(false); }}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-white/10"
