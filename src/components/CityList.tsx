@@ -82,7 +82,7 @@ export function CityListPanel({
             <MoreHorizontal className="h-4 w-4" />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-full z-40 mt-2 w-48 overflow-hidden rounded-2xl border border-white/15 bg-black/60 text-sm backdrop-blur-2xl shadow-2xl">
+            <div className="absolute right-0 top-full z-40 mt-2 w-52 overflow-hidden rounded-2xl border border-white/15 bg-black/60 text-sm backdrop-blur-2xl shadow-2xl">
               <button
                 onClick={() => { setEditing((v) => !v); setMenuOpen(false); }}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-white/10"
@@ -95,6 +95,15 @@ export function CityListPanel({
                 onClick={() => { setUnitsPref("metric"); setMenuOpen(false); }} />
               <MenuRow label={T.t("fahrenheit")} mark="°F" checked={units === "imperial"}
                 onClick={() => { setUnitsPref("imperial"); setMenuOpen(false); }} />
+              <div className="h-px bg-white/10" />
+              <Link
+                to="/units"
+                onClick={() => setMenuOpen(false)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-white/10"
+              >
+                <span className="flex w-4 justify-center text-xs text-white/80">U</span>
+                <span>{T.t("units")}</span>
+              </Link>
             </div>
           )}
         </div>
