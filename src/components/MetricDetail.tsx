@@ -558,7 +558,7 @@ function TopValue({ big, unit, sub, trend, inlineIcon, rightSlot }: { big: strin
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
         <div className="flex items-baseline gap-x-2">
-          {trend !== undefined && <span className="text-2xl" aria-hidden="true">{trend > 1 ? "↑" : trend < -1 ? "↓" : "→"}</span>}
+          {trend !== undefined && <span className="text-2xl" aria-hidden="true">{trend > 1 ? "↑" : trend < -1 ? "↓" : "="}</span>}
           <span className="text-5xl font-light leading-none tabular-nums sm:text-6xl">{big}</span>
           {inlineIcon && <span className="leading-none [&_svg]:h-9 [&_svg]:w-9">{inlineIcon}</span>}
           {unit && <span className="text-lg text-detail-muted">{unit}</span>}
