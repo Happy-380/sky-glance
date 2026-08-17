@@ -272,9 +272,12 @@
 
 /* Page transition: a quick, gentle crossfade when the route changes. Vertical
    motion is deliberately left to inner content (e.g. the card stagger) so the
-   two don't compete. */
+   two don't compete.
+   The hidden state lives in the base rule (not in the keyframe's `from`) so the
+   first painted frame is already hidden — no one-frame flash on remount. */
 .route-enter {
-  animation: route-in 0.25s var(--ease-out) both;
+  opacity: 0;
+  animation: route-in 0.25s var(--ease-out) forwards;
 }
 
 /* Dropdown / menu expand: grows from its trigger (top-right corner where the
@@ -285,7 +288,6 @@
 }
 
 @keyframes route-in {
-  from { opacity: 0; }
   to { opacity: 1; }
 }
 
@@ -301,9 +303,13 @@
   .detail-chart-enter,
   .detail-sun-dot,
   .app-fade-up > *,
-  .route-enter,
   .menu-pop {
     animation: none !important; /* clear fill so elements stay fully visible */
+  }
+  /* route-enter hides its own content via base opacity, so override to visible */
+  .route-enter {
+    opacity: 1 !important;
+    animation: none;
   }
 }
 
