@@ -270,14 +270,19 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Page transition: a quick, gentle crossfade when the route changes. Vertical
-   motion is deliberately left to inner content (e.g. the card stagger) so the
-   two don't compete.
-   The hidden state lives in the base rule (not in the keyframe's `from`) so the
-   first painted frame is already hidden — no one-frame flash on remount. */
-.route-enter {
-  opacity: 0;
-  animation: route-in 0.25s var(--ease-out) forwards;
+/* Route page entrance: the incoming page slides up into place from the
+   bottom, mirroring the bottom-sheet idiom (负一屏). There's deliberately no
+   crossfade of the outgoing page — a crossfade between differently-coloured
+   pages lets the white body flash through mid-transition. Instead the new page
+   simply slides in, so navigation never flashes. */
+.page-enter {
+  animation: page-in 0.4s var(--ease-out) both;
+  will-change: transform, opacity;
+}
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(32px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Dropdown / menu expand: grows from its trigger (top-right corner where the
@@ -285,10 +290,6 @@
 .menu-pop {
   transform-origin: top right;
   animation: menu-in 0.18s var(--ease-out) both;
-}
-
-@keyframes route-in {
-  to { opacity: 1; }
 }
 
 @keyframes menu-in {
@@ -303,13 +304,9 @@
   .detail-chart-enter,
   .detail-sun-dot,
   .app-fade-up > *,
-  .menu-pop {
+  .menu-pop,
+  .page-enter {
     animation: none !important; /* clear fill so elements stay fully visible */
-  }
-  /* route-enter hides its own content via base opacity, so override to visible */
-  .route-enter {
-    opacity: 1 !important;
-    animation: none;
   }
 }
 

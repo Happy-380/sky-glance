@@ -1,7 +1,6 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, ChevronDown, Check, CheckCircle2 } from "lucide-react";
+import { X, ChevronDown, Check, CheckCircle2 } from "lucide-react";
 import {
   useUnitSettings, setUnitSettings,
   DEFAULT_UNITS,
@@ -95,12 +94,12 @@ function UnitDropdown<T extends string>({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-white/5"
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-[15px] hover:bg-detail-control"
       >
-        <span className="text-white/60">{label}</span>
-        <span className="flex items-center gap-1 text-white">
+        <span className="text-detail-muted">{label}</span>
+        <span className="flex items-center gap-1 text-detail-foreground">
           {displayLabel}
-          <ChevronDown className={`h-4 w-4 text-white/50 transition-transform ${open ? "rotate-180" : ""}`} />
+          <ChevronDown className={`h-4 w-4 text-detail-muted transition-transform ${open ? "rotate-180" : ""}`} />
         </span>
       </button>
       {open && createPortal(
@@ -113,7 +112,7 @@ function UnitDropdown<T extends string>({
             width: pos.width,
             zIndex: 9999,
           }}
-          className="overflow-hidden rounded-lg border border-white/10 bg-[#1c1c1e] shadow-xl backdrop-blur-xl"
+          className="overflow-hidden rounded-2xl border border-detail-line bg-detail-menu py-1 shadow-2xl backdrop-blur-2xl"
         >
           {options.map((opt) => {
             const isSelected = opt.value === value;
@@ -122,12 +121,12 @@ function UnitDropdown<T extends string>({
               <button
                 key={opt.value}
                 onClick={() => { onChange(opt.value); setOpen(false); }}
-                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-white/10"
+                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition hover:bg-detail-control ${isSelected ? "text-detail-foreground" : "text-detail-muted"}`}
               >
                 <span className="w-4">
-                  {isSelected && <Check className="h-4 w-4 text-white" />}
+                  {isSelected && <Check className="h-4 w-4 text-detail-selected" />}
                 </span>
-                <span className={isSelected ? "text-white" : "text-white/60"}>{optLabel}</span>
+                <span>{optLabel}</span>
               </button>
             );
           })}
@@ -138,10 +137,9 @@ function UnitDropdown<T extends string>({
   );
 }
 
-export function UnitSettingsPage() {
+export function UnitSettingsSheet({ onClose }: { onClose: () => void }) {
   const lang = useMemo(() => detectLang(), []);
   const T = useMemo(() => makeT(lang), [lang]);
-  const navigate = useNavigate();
   const settings = useUnitSettings();
   const [local, setLocal] = useState<UnitSettings>(settings);
   const [saved, setSaved] = useState(false);
@@ -149,6 +147,17 @@ export function UnitSettingsPage() {
   useEffect(() => {
     setLocal(settings);
   }, [settings]);
+
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKey = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [onClose]);
 
   function update<K extends keyof UnitSettings>(key: K, value: UnitSettings[K]) {
     const next = { ...local, [key]: value };
@@ -171,32 +180,39 @@ export function UnitSettingsPage() {
     local.distance === DEFAULT_UNITS.distance;
 
   return (
-    <div
-      className="min-h-screen w-full overflow-x-hidden text-white"
-      style={{ background: "linear-gradient(160deg, #14324f 0%, #0a1b2e 100%)" }}
-    >
-      <div className="mx-auto flex min-h-screen w-full max-w-2xl min-w-0 flex-col px-4 pb-20 pt-4 md:px-6">
-        <header className="mb-6 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-          <button
-            onClick={() => navigate({ to: "/" })}
-            className="shrink-0 rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl"
-            aria-label={T.t("back")}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <h1 className="truncate text-center text-2xl font-bold tracking-tight">
-            {T.t("unitSettings")}
-          </h1>
-          <div className="flex h-10 w-10 items-center justify-center">
-            {saved && <CheckCircle2 className="h-5 w-5 text-green-400" />}
+    <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-5">
+      <button
+        type="button"
+        className="detail-fade-enter absolute inset-0 bg-detail-overlay backdrop-blur-sm"
+        onClick={onClose}
+        aria-label={T.t("close")}
+      />
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label={T.t("unitSettings")}
+        className="detail-sheet-enter relative z-10 flex max-h-[92dvh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[28px] border border-detail-line bg-detail-panel text-detail-foreground shadow-2xl backdrop-blur-2xl sm:max-h-[86dvh] sm:rounded-[28px]"
+      >
+        <header className="relative flex h-16 shrink-0 items-center justify-center border-b border-detail-line px-16">
+          <div className="flex min-w-0 items-center gap-2 text-lg font-semibold">
+            <span className="truncate">{T.t("unitSettings")}</span>
+            {saved && <CheckCircle2 className="h-5 w-5 shrink-0 text-green-400" />}
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-4 grid h-10 w-10 place-items-center rounded-full bg-detail-control text-detail-foreground transition hover:bg-detail-control-hover"
+            aria-label={T.t("close")}
+          >
+            <X className="h-5 w-5" />
+          </button>
         </header>
 
-        <div className="flex flex-col gap-4">
+        <div className="detail-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-9 pt-4 sm:px-6">
           {/* Temperature */}
-          <div className="overflow-visible rounded-2xl border border-white/10 bg-white/[0.07] backdrop-blur-xl">
-            <div className="px-4 pt-3 pb-1">
-              <span className="text-xs font-semibold uppercase tracking-wider text-white/50">
+          <div className="overflow-visible rounded-2xl border border-detail-line bg-detail-surface">
+            <div className="px-4 pb-1 pt-3">
+              <span className="text-xs font-semibold uppercase tracking-wider text-detail-muted">
                 {lang === "zh" ? "气温" : "Temperature"}
               </span>
             </div>
@@ -207,13 +223,13 @@ export function UnitSettingsPage() {
                 <button
                   key={opt.value}
                   onClick={() => update("temperature", opt.value)}
-                  className={`flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left text-[15px] hover:bg-white/5 ${
-                    i < TEMP_OPTIONS.length - 1 ? "border-b border-white/[0.06]" : ""
+                  className={`flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left text-[15px] transition hover:bg-detail-control ${
+                    i < TEMP_OPTIONS.length - 1 ? "border-b border-detail-line" : ""
                   }`}
                 >
-                  <span className={isSelected ? "text-white" : "text-white/60"}>{label}</span>
+                  <span className={isSelected ? "text-detail-foreground" : "text-detail-muted"}>{label}</span>
                   <span className="w-4">
-                    {isSelected && <Check className="h-4 w-4 text-blue-400" />}
+                    {isSelected && <Check className="h-4 w-4 text-detail-selected" />}
                   </span>
                 </button>
               );
@@ -222,10 +238,10 @@ export function UnitSettingsPage() {
 
           {/* Other Units */}
           <div>
-            <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-white/50">
+            <h2 className="mb-2 mt-5 px-1 text-xs font-semibold uppercase tracking-wider text-detail-muted">
               {T.t("otherUnits")}
             </h2>
-            <div className="overflow-visible rounded-2xl border border-white/10 bg-white/[0.07] backdrop-blur-xl">
+            <div className="overflow-visible rounded-2xl border border-detail-line bg-detail-surface">
               <UnitDropdown
                 label={T.t("wind")}
                 options={WIND_OPTIONS}
@@ -233,7 +249,7 @@ export function UnitSettingsPage() {
                 onChange={(v) => update("wind", v)}
                 lang={lang}
               />
-              <div className="h-px bg-white/[0.06]" />
+              <div className="h-px bg-detail-line" />
               <UnitDropdown
                 label={T.t("precip")}
                 options={PRECIP_OPTIONS}
@@ -241,7 +257,7 @@ export function UnitSettingsPage() {
                 onChange={(v) => update("precipitation", v)}
                 lang={lang}
               />
-              <div className="h-px bg-white/[0.06]" />
+              <div className="h-px bg-detail-line" />
               <UnitDropdown
                 label={T.t("pressure")}
                 options={PRESSURE_OPTIONS}
@@ -249,7 +265,7 @@ export function UnitSettingsPage() {
                 onChange={(v) => update("pressure", v)}
                 lang={lang}
               />
-              <div className="h-px bg-white/[0.06]" />
+              <div className="h-px bg-detail-line" />
               <UnitDropdown
                 label={T.t("distance")}
                 options={DISTANCE_OPTIONS}
@@ -263,22 +279,22 @@ export function UnitSettingsPage() {
           {/* Restore Defaults */}
           <button
             onClick={restoreDefaults}
-            className={`group rounded-2xl border border-white/10 bg-white/[0.07] px-4 py-4 text-left backdrop-blur-xl transition hover:bg-white/10 active:scale-[0.99] ${
+            className={`mt-5 w-full rounded-2xl border border-detail-line bg-detail-surface px-4 py-4 text-left transition hover:bg-detail-control active:scale-[0.99] ${
               isDefault ? "opacity-70" : ""
             }`}
           >
             <div className="flex items-center gap-2">
-              <p className="text-[15px] font-medium text-white">{T.t("restoreDefaults")}</p>
+              <p className="text-[15px] font-medium text-detail-foreground">{T.t("restoreDefaults")}</p>
               {isDefault && (
-                <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/60">
+                <span className="rounded-full bg-detail-control px-2 py-0.5 text-xs text-detail-muted">
                   {lang === "zh" ? "已是默认" : "Default"}
                 </span>
               )}
             </div>
-            <p className="mt-1 text-sm text-white/50">{T.t("restoreDefaultsDesc")}</p>
+            <p className="mt-1 text-sm text-detail-muted">{T.t("restoreDefaultsDesc")}</p>
           </button>
         </div>
-      </div>
+      </section>
     </div>
   );
 }
