@@ -298,7 +298,9 @@ function Chart({
 
   return (
     <div className="min-w-0">
-      {header}
+      {/* 顶部图标/数值条：加 pr-8/sm:pr-9 与曲线内容区右边距对齐，
+           这样最右侧图标不会伸入蓝框(坐标轴)区域。 */}
+      {header && <div className="pr-8 sm:pr-9">{header}</div>}
       {/* 关键修复：把温度轴 (蓝框) 从 CSS Grid 独立列改成 h-44 曲线容器的绝对定位。
            这样：
            1) 轴的高度永远等于 176px (h-44)，与红框高度(wind风向箭头的h-8)完全解耦。
