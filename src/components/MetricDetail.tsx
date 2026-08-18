@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Check,
@@ -104,6 +104,7 @@ function Chart({
   nowHour,
   maxMin,
   onScrub,
+  scrubContent,
 }: {
   points: { h: number; v: number }[];
   color: string;
@@ -123,12 +124,16 @@ function Chart({
   maxMin?: { high: string; low: string };
   /** 触摸/拖动图表时回调，传出吸附后的数据点（含格式化数值）；null 表示结束。 */
   onScrub?: (point: { h: number; v: number; text: string } | null) => void;
+  /** 触摸查看时在数据点上方渲染的浮动提示框。接收吸附后的点，返回要渲染的内容。 */
+  scrubContent?: (point: { h: number; v: number; text: string }) => React.ReactNode;
 }) {
   const width = 320;
   const height = 164;
   const span = max - min || 1;
   /* 触摸查看：手指/光标所在的小时；null 表示未激活。 */
   const [scrubH, setScrubH] = useState<number | null>(null);
+  /* 指针按下标记：替代不可靠的 e.buttons（移动端触摸时常为 0） */
+  const isPointerDown = useRef(false);
   const x = (hour: number) => (axleFrac(hour) / 100) * width;
   const y = (value: number) => height - ((value - min) / span) * height;
   const gradientId = useMemo(() => `chart-${Math.random().toString(36).slice(2)}`, []);
@@ -230,6 +235,7 @@ function Chart({
     onScrub?.(p ? { ...p, text: format(p.v) } : null);
   };
   const clearScrub = () => {
+    isPointerDown.current = false;
     setScrubH(null);
     onScrub?.(null);
   };
@@ -241,12 +247,12 @@ function Chart({
       <div className="detail-chart-col min-w-0">
         {header}
         <div
-          className="relative cursor-crosshair touch-none select-none"
-          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); scrubFromEvent(e); }}
-          onPointerMove={(e) => { if (e.buttons) scrubFromEvent(e); }}
+          className="relative cursor-crosshair touch-none select-none py-4"
+          onPointerDown={(e) => { isPointerDown.current = true; e.currentTarget.setPointerCapture(e.pointerId); scrubFromEvent(e); }}
+          onPointerMove={(e) => { if (isPointerDown.current) scrubFromEvent(e); }}
           onPointerCancel={clearScrub}
           onPointerUp={clearScrub}
-          onPointerLeave={(e) => { if (e.pointerType === "mouse" && !e.buttons) clearScrub(); }}
+          onPointerLeave={(e) => { if (e.pointerType === "mouse" && !isPointerDown.current) clearScrub(); }}
         >
           <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-44 w-full overflow-visible">
             <defs>
@@ -292,37 +298,63 @@ function Chart({
               </>
             )}
           </svg>
-          {/* 最高/最低标记：圆点 + 文案，用 HTML 覆盖层渲染避免 SVG 拉伸变形；
-              文案水平方向 clamp 在 8%–92%，防止超出图表边缘 */}
+          {/* 最高/最低标记：圆点 + 文案，用 HTML 覆盖层渲染避免 SVG 拉伸变形。
+              智能翻转：上半区（yFrac<0.45）的标签放到圆点下方，避免与图标行重叠；
+              下半区的标签放到圆点上方。水平方向 clamp 在 8%–92%。
+              注：SVG 高度 height 与实际渲染的 h-44 有差异时按百分比定位可保持对齐。 */}
           {extremes && (
             <>
-              <span
-                className="pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] shadow"
-                style={{ left: `${axleFrac(extremes.hi.h)}%`, top: `${(y(extremes.hi.v) / height) * 100}%`, borderColor: color, background: "var(--detail-panel)" }}
-              />
-              <span
-                className="pointer-events-none absolute z-10 text-xs font-medium text-detail-muted"
-                style={{ left: `${Math.min(Math.max(axleFrac(extremes.hi.h), 8), 92)}%`, top: `${(y(extremes.hi.v) / height) * 100}%`, transform: "translate(-50%, calc(-100% - 10px))" }}
-              >
-                {maxMin!.high}
-              </span>
-              {extremes.lo && (
-                <>
-                  <span
-                    className="pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] shadow"
-                    style={{ left: `${axleFrac(extremes.lo.h)}%`, top: `${(y(extremes.lo.v) / height) * 100}%`, borderColor: color, background: "var(--detail-panel)" }}
-                  />
-                  <span
-                    className="pointer-events-none absolute z-10 text-xs font-medium text-detail-muted"
-                    style={{ left: `${Math.min(Math.max(axleFrac(extremes.lo.h), 8), 92)}%`, top: `${(y(extremes.lo.v) / height) * 100}%`, transform: "translate(-50%, calc(-100% - 10px))" }}
-                  >
-                    {maxMin!.low}
-                  </span>
-                </>
-              )}
+              {(() => {
+                const hiFrac = y(extremes.hi.v) / height;
+                const hiLabelBelow = hiFrac < 0.45;
+                return (
+                  <>
+                    <span
+                      className="pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] shadow"
+                      style={{ left: `${axleFrac(extremes.hi.h)}%`, top: `${hiFrac * 100}%`, borderColor: color, background: "var(--detail-panel)" }}
+                    />
+                    <span
+                      className="pointer-events-none absolute z-10 text-xs font-medium text-detail-muted"
+                      style={{
+                        left: `${Math.min(Math.max(axleFrac(extremes.hi.h), 10), 90)}%`,
+                        top: `${hiFrac * 100}%`,
+                        transform: hiLabelBelow
+                          ? "translate(-50%, calc(100% + 6px))"
+                          : "translate(-50%, calc(-100% - 6px))",
+                      }}
+                    >
+                      {maxMin!.high}
+                    </span>
+                  </>
+                );
+              })()}
+              {extremes.lo && (() => {
+                const loFrac = y(extremes.lo.v) / height;
+                const loLabelBelow = loFrac < 0.45;
+                return (
+                  <>
+                    <span
+                      className="pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] shadow"
+                      style={{ left: `${axleFrac(extremes.lo.h)}%`, top: `${loFrac * 100}%`, borderColor: color, background: "var(--detail-panel)" }}
+                    />
+                    <span
+                      className="pointer-events-none absolute z-10 text-xs font-medium text-detail-muted"
+                      style={{
+                        left: `${Math.min(Math.max(axleFrac(extremes.lo.h), 10), 90)}%`,
+                        top: `${loFrac * 100}%`,
+                        transform: loLabelBelow
+                          ? "translate(-50%, calc(100% + 6px))"
+                          : "translate(-50%, calc(-100% - 6px))",
+                      }}
+                    >
+                      {maxMin!.low}
+                    </span>
+                  </>
+                );
+              })()}
             </>
           )}
-          {/* 触摸查看：白色竖线 + 白色圆点（数值/时刻显示在顶部大数字区） */}
+          {/* 触摸查看：白色竖线 + 白色圆点 + 浮动提示框（时刻/图标/数值跟随位置） */}
           {scrubPoint && (
             <>
               <span
@@ -333,6 +365,21 @@ function Chart({
                 className="pointer-events-none absolute z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-detail-foreground bg-detail-foreground shadow-lg"
                 style={{ left: `${axleFrac(scrubPoint.h)}%`, top: `${(y(scrubPoint.v) / height) * 100}%` }}
               />
+              {/* 浮动提示框：在数据点正上方，水平居中对齐；位置超出 12%–88% 范围时夹边，防止越界 */}
+              {scrubContent && (
+                <span
+                  className="pointer-events-none absolute z-20"
+                  style={{
+                    left: `${Math.min(Math.max(axleFrac(scrubPoint.h), 20), 80)}%`,
+                    top: `${(y(scrubPoint.v) / height) * 100}%`,
+                    transform: "translate(-50%, calc(-100% - 16px))",
+                  }}
+                >
+                  <div className="rounded-xl bg-detail-menu/95 px-3 py-2 text-center shadow-xl ring-1 ring-detail-line backdrop-blur-md whitespace-nowrap">
+                    {scrubContent({ ...scrubPoint, text: format(scrubPoint.v) })}
+                  </div>
+                </span>
+              )}
             </>
           )}
         </div>
@@ -478,7 +525,6 @@ export function MetricDetail({
       const getTemp = (hour: OMHour) => tempTab === "actual" ? hour.temp : hour.feels;
       const values = dayHours.map(getTemp);
       const range = chartRange(values);
-      const scrubHour = scrub ? dayHours.find((hour) => localParts(hour.dt, tz).hour === Math.round(scrub.h)) : undefined;
       return (
         <div className="space-y-3">
           <TopValue
@@ -486,11 +532,6 @@ export function MetricDetail({
             sub={tempTab === "actual" ? `${T.t("high")} ${toDisplayTemp(day.max)}${tempSuffix}  ${T.t("low")} ${toDisplayTemp(day.min)}${tempSuffix}` : `${T.t("actualTemp")} ${toDisplayTemp(dayIdx === 0 ? cur.main.temp : dayHours[0].temp)}${tempSuffix}`}
             inlineIcon={<img src={iconUrl(dayIdx === 0 ? cur.weather[0].icon : day.icon)} alt="" className="h-12 w-12 sm:h-14 sm:w-14" />}
             rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />}
-            scrub={scrub ? {
-              time: chartHourLabel(scrub.h),
-              big: scrub.text,
-              icon: <img src={iconUrl(scrubHour?.icon ?? day.icon)} alt="" className="h-10 w-10 sm:h-12 sm:w-12" />,
-            } : undefined}
           />
           <Chart
             points={points(getTemp)}
@@ -502,6 +543,18 @@ export function MetricDetail({
             onScrub={setScrub}
             maxMin={{ high: T.t("chartHigh"), low: T.t("chartLow") }}
             header={<IconRow hours={dayHours} tz={tz} />}
+            scrubContent={(pt) => {
+              const hr = dayHours.find((h) => localParts(h.dt, tz).hour === Math.round(pt.h));
+              return (
+                <div className="space-y-0.5 text-center">
+                  <div className="text-xs tabular-nums text-detail-muted">{chartHourLabel(pt.h)}</div>
+                  <div className="flex items-center justify-center gap-1.5">
+                    {hr && <img src={iconUrl(hr.icon)} alt="" className="h-5 w-5" />}
+                    <span className="text-lg font-semibold tabular-nums">{pt.text}</span>
+                  </div>
+                </div>
+              );
+            }}
           />
           <SegmentedControl value={tempTab} onChange={setTempTab} left={T.t("actualTemp")} right={T.t("apparentTemp")} />
           <p className="text-base text-detail-muted">{tempTab === "actual" ? T.t("actualTempDesc") : T.t("apparentTempDesc")}</p>
@@ -750,24 +803,7 @@ function MetricSelector({ metrics: items, key: current, onSelect, icon }: { metr
   );
 }
 
-function TopValue({ big, unit, sub, trend, inlineIcon, rightSlot, scrub }: { big: string; unit?: string; sub?: string; trend?: number; inlineIcon?: React.ReactNode; rightSlot?: React.ReactNode; scrub?: { time: string; big: string; icon?: React.ReactNode } }) {
-  /* 触摸查看图表时：顶部切换为居中的"时刻 + 图标 + 数值"（参考系统天气） */
-  if (scrub) {
-    return (
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-col items-center gap-1.5">
-            <span className="text-base tabular-nums text-detail-muted">{scrub.time}</span>
-            <div className="flex items-center gap-2">
-              {scrub.icon && <span className="leading-none [&_img]:h-10 [&_img]:w-10 sm:[&_img]:h-12 sm:[&_img]:w-12">{scrub.icon}</span>}
-              <span className="text-5xl font-light leading-none tabular-nums sm:text-6xl">{scrub.big}</span>
-            </div>
-          </div>
-        </div>
-        {rightSlot && <div className="shrink-0 pt-1">{rightSlot}</div>}
-      </div>
-    );
-  }
+function TopValue({ big, unit, sub, trend, inlineIcon, rightSlot }: { big: string; unit?: string; sub?: string; trend?: number; inlineIcon?: React.ReactNode; rightSlot?: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
