@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { Search, Loader2, Trash2, MoreHorizontal, Check, Pencil, ChevronLeft, X } from "lucide-react";
@@ -8,6 +9,7 @@ import {
   setActiveId, makeId, type SavedLocation,
 } from "@/lib/locations-store";
 import { detectLang, makeT, formatTimeL } from "@/lib/i18n";
+import { UnitSettingsSheet } from "@/components/UnitSettings";
 
 /** Shared list UI. `embedded` renders it inside a panel (wide-screen drawer). */
 export function CityListPanel({
@@ -27,6 +29,7 @@ export function CityListPanel({
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [unitsOpen, setUnitsOpen] = useState(false);
 
   const search = useQuery({
     queryKey: ["geocode", query],
@@ -96,14 +99,13 @@ export function CityListPanel({
               <MenuRow label={T.t("fahrenheit")} mark="°F" checked={units === "imperial"}
                 onClick={() => { setUnitsPref("imperial"); setMenuOpen(false); }} />
               <div className="h-px bg-white/10" />
-              <Link
-                to="/units"
-                onClick={() => setMenuOpen(false)}
+              <button
+                onClick={() => { setMenuOpen(false); setUnitsOpen(true); }}
                 className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-white/10"
               >
                 <span className="flex w-4 justify-center text-xs text-white/80">U</span>
                 <span>{T.t("units")}</span>
-              </Link>
+              </button>
             </div>
           )}
         </div>
@@ -165,6 +167,12 @@ export function CityListPanel({
           />
         ))}
       </div>
+
+      {unitsOpen &&
+        createPortal(
+          <UnitSettingsSheet onClose={() => setUnitsOpen(false)} />,
+          document.body
+        )}
     </div>
   );
 }
@@ -172,7 +180,7 @@ export function CityListPanel({
 export function CityList() {
   return (
     <div
-      className="min-h-screen w-full overflow-x-hidden text-white"
+      className="page-enter min-h-screen w-full overflow-x-hidden text-white"
       style={{ background: "linear-gradient(160deg, #14324f 0%, #0a1b2e 100%)" }}
     >
       <CityListPanel />

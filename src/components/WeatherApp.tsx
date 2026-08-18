@@ -19,6 +19,7 @@ import { detectLang, makeT, formatHourL, formatDayL, formatTimeL, isNightAt } fr
 import { weatherGradient } from "@/lib/gradient";
 import { WeatherCards } from "@/components/WeatherCards";
 import { CityListPanel } from "@/components/CityList";
+import { UnitSettingsSheet } from "@/components/UnitSettings";
 import { buildHighlights } from "@/lib/highlights";
 import { MetricDetail, type MetricKey } from "@/components/MetricDetail";
 
@@ -46,6 +47,7 @@ export function WeatherApp() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("weather");
   const [detail, setDetail] = useState<MetricKey | null>(null);
+  const [unitsOpen, setUnitsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -193,7 +195,7 @@ export function WeatherApp() {
   ];
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden text-white" style={{ background: bg }}>
+    <div className="page-enter min-h-screen w-full overflow-x-hidden text-white" style={{ background: bg }}>
       {/* Wide-screen city list drawer */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 hidden lg:block">
@@ -259,8 +261,7 @@ export function WeatherApp() {
                 <MenuItem
                   icon={<span className="w-4 text-center text-xs">U</span>}
                   label={T.t("units")}
-                  to="/units"
-                  onClick={() => setMenuOpen(false)}
+                  onClick={() => { setMenuOpen(false); setUnitsOpen(true); }}
                 />
                 <div className="h-px bg-white/10" />
                 <MenuItem
@@ -533,6 +534,8 @@ export function WeatherApp() {
           )}
         </main>
       </div>
+
+      {unitsOpen && <UnitSettingsSheet onClose={() => setUnitsOpen(false)} />}
     </div>
   );
 }
