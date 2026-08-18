@@ -137,8 +137,27 @@
 .detail-chart-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 2.1rem;
+  grid-template-rows: auto 11rem auto;
   column-gap: 0.25rem;
+  align-items: start;
 }
+
+/* Left column: occupies all 3 rows (header row + chart row + labels row) */
+.detail-chart-col {
+  grid-column: 1 / 2;
+  grid-row: 1 / 4;
+}
+
+/* Right axis: sits in row 2 only, which is exactly 11rem (= h-44) matching the SVG
+   height on the left. Top & bottom now perfectly align with the chart area. */
+.detail-chart-axis {
+  grid-column: 2 / 3;
+  grid-row: 2 / 3;
+  align-self: stretch;
+}
+
+/* Optional inner spacer to match header height when a header exists.
+   Handled naturally by the grid rows: row 1 auto = header height. */
 
 .detail-chart-line {
   stroke: var(--detail-line);

@@ -419,8 +419,9 @@ function Chart({
           ))}
         </div>
       </div>
-      {/* 温度轴：紧贴图表右侧，左竖线与横轴分隔，宽度压缩以减少占地 */}
-      <div className="flex h-44 flex-col justify-between border-l border-detail-line pl-1 text-right text-[11px] leading-none tabular-nums text-detail-muted sm:text-xs">
+      {/* 温度轴：紧贴图表右侧，通过 grid 定位到 row 2（SVG 行），与图表高度严格对齐（11rem=h-44）。
+           竖线 + 刻度都不再因为 header 占位而偏高。 */}
+      <div className="detail-chart-axis flex flex-col justify-between border-l border-detail-line pl-1 text-right text-[11px] leading-none tabular-nums text-detail-muted sm:text-xs">
         {ticks.map((tick) => <span key={tick}>{format(tick)}</span>)}
       </div>
     </div>
@@ -809,7 +810,12 @@ function MetricSelector({ metrics: items, active, onSelect, icon }: { metrics: {
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden="true" />
           <div className="absolute right-0 top-11 z-20 w-56 overflow-hidden rounded-2xl border border-detail-line bg-detail-menu py-1 shadow-2xl backdrop-blur-2xl">
             {items.map((item) => (
-              <button type="button" key={item.k} onClick={() => { onSelect(item.k); setOpen(false); }} className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-detail-control [&_svg]:h-4 [&_svg]:w-4 ${active === item.k ? "text-detail-selected-foreground" : ""}`}>
+              <button
+                type="button"
+                key={item.k}
+                onClick={() => { onSelect(item.k); setOpen(false); }}
+                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-detail-control [&_svg]:h-4 [&_svg]:w-4 ${active === item.k ? "bg-detail-selected text-detail-selected-foreground hover:bg-detail-selected" : ""}`}
+              >
                 <span className="w-4">{active === item.k ? <Check className="h-4 w-4" /> : null}</span>{item.icon}<span>{item.label}</span>
               </button>
             ))}
