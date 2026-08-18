@@ -17,6 +17,8 @@ const D: Dict = {
   myLocation: { zh: "我的位置", en: "My Location" },
   high: { zh: "最高", en: "H" },
   low: { zh: "最低", en: "L" },
+  chartHigh: { zh: "最高", en: "High" },
+  chartLow: { zh: "最低", en: "Low" },
   feels: { zh: "体感", en: "Feels" },
   next24: { zh: "未来 24 小时", en: "Next 24 Hours" },
   now: { zh: "现在", en: "Now" },
