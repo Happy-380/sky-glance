@@ -549,7 +549,7 @@ export function MetricDetail({
             big={`${toDisplayTemp(dayIdx === 0 ? (tempTab === "actual" ? cur.main.temp : cur.main.feels_like) : values[0])}${tempSuffix}`}
             sub={tempTab === "actual" ? `${T.t("high")} ${toDisplayTemp(day.max)}${tempSuffix}  ${T.t("low")} ${toDisplayTemp(day.min)}${tempSuffix}` : `${T.t("actualTemp")} ${toDisplayTemp(dayIdx === 0 ? cur.main.temp : dayHours[0].temp)}${tempSuffix}`}
             inlineIcon={<img src={iconUrl(dayIdx === 0 ? cur.weather[0].icon : day.icon)} alt="" className="h-12 w-12 sm:h-14 sm:w-14" />}
-            rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />}
+            rightSlot={<MetricSelector metrics={metrics} active={key} onSelect={setKey} icon={heading.icon} />}
           />
           <Chart
             points={points(getTemp)}
@@ -576,7 +576,7 @@ export function MetricDetail({
       const current = dayIdx === 0 ? (dayHours.find((hour) => hour.dt >= cur.dt)?.uv ?? 0) : Math.max(...values);
       return (
         <div className="space-y-3">
-          <TopValue big={`${Math.round(current)}`} unit={uvLevel(current)} sub={T.t("whoUvi")} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={`${Math.round(current)}`} unit={uvLevel(current)} sub={T.t("whoUvi")} rightSlot={<MetricSelector metrics={metrics} active={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => hour.uv)}
             color="var(--weather-uv)"
@@ -602,7 +602,7 @@ export function MetricDetail({
       const maxWind = convertWind(Math.max(...windValues), unitSettings.wind);
       return (
         <div className="space-y-3">
-          <TopValue big={`${curWind.value.toFixed(0)}`} unit={windUnitStr} sub={`${T.t("gustsLabel")}${maxGust.value.toFixed(0)} ${windUnitStr} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={`${curWind.value.toFixed(0)}`} unit={windUnitStr} sub={`${T.t("gustsLabel")}${maxGust.value.toFixed(0)} ${windUnitStr} · ${T.compass(degToCompass(dayHours[0].windDeg))}`} rightSlot={<MetricSelector metrics={metrics} active={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => convertWind(hour.wind, unitSettings.wind).value)}
             color="var(--weather-wind)"
@@ -633,7 +633,7 @@ export function MetricDetail({
       const totalConverted = convertPrecip(total, unitSettings.precipitation);
       return (
         <div className="space-y-5">
-          <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} rightSlot={<MetricSelector metrics={metrics} active={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} nowHour={chartNowHour} dayHours={dayHours} formatHour={chartHourLabel} />
           <Section title={T.t("precipTotal")}>
             <StatRows rows={[
@@ -653,7 +653,7 @@ export function MetricDetail({
       const average = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
       return (
         <div className="space-y-5">
-          <TopValue big={`${dayIdx === 0 ? cur.main.humidity : average}`} unit="%" sub={copy(`今天平均湿度为 ${average}%。`, `Today's average humidity is ${average}%.`)} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={`${dayIdx === 0 ? cur.main.humidity : average}`} unit="%" sub={copy(`今天平均湿度为 ${average}%。`, `Today's average humidity is ${average}%.`)} rightSlot={<MetricSelector metrics={metrics} active={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => hour.humidity)}
             color="var(--weather-humidity)"
@@ -682,7 +682,7 @@ export function MetricDetail({
       const maxVal = convertDistance(Math.max(...values), unitSettings.distance);
       return (
         <div className="space-y-3">
-          <TopValue big={nowConverted.value.toFixed(1)} unit={nowConverted.label} sub={visibilityLevel(nowKm)} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={nowConverted.value.toFixed(1)} unit={nowConverted.label} sub={visibilityLevel(nowKm)} rightSlot={<MetricSelector metrics={metrics} active={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart
             points={points((hour) => convertDistance((hour.visibility || cur.visibility) / 1000, unitSettings.distance).value)}
             color="var(--weather-visibility)"
@@ -710,7 +710,7 @@ export function MetricDetail({
       const avgPressure = convertPressure(average, unitSettings.pressure);
       return (
         <div className="space-y-5">
-          <TopValue big={Math.round(curPressure.value).toLocaleString()} unit={curPressure.label} sub={trendLabel} trend={trend} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={Math.round(curPressure.value).toLocaleString()} unit={curPressure.label} sub={trendLabel} trend={trend} rightSlot={<MetricSelector metrics={metrics} active={key} onSelect={setKey} icon={heading.icon} />} />
           <Chart points={points((hour) => convertPressure(hour.pressure || cur.main.pressure, unitSettings.pressure).value)} color="var(--weather-pressure)" min={convertPressure(range.min, unitSettings.pressure).value} max={convertPressure(range.max, unitSettings.pressure).value} format={(value) => `${Math.round(value)}`} nowHour={chartNowHour} dayHours={dayHours} formatHour={chartHourLabel} />
           <InfoSection title={T.t("dailySummary")} text={copy(`当前气压为 ${Math.round(curPressure.value)} ${curPressure.label}，${trendLabel}。今天平均气压约为 ${Math.round(avgPressure.value)} ${avgPressure.label}。`, `Pressure is ${Math.round(curPressure.value)} ${curPressure.label} and ${trendLabel.toLowerCase()}. Today's average is about ${Math.round(avgPressure.value)} ${avgPressure.label}.`)} />
           <InfoSection title={copy("关于气压", "About Pressure")} text={copy("气压的显著变化可用于预测天气变化。气压降低可能表示雨雪即将来临，气压升高则可能表示天气将转好。", "Significant pressure changes can help predict weather. Falling pressure may signal rain or snow, while rising pressure can indicate improving conditions.")} />
@@ -725,7 +725,7 @@ export function MetricDetail({
       const daylightMinutes = Math.max(0, Math.round((sunset - sunrise) / 60));
       return (
         <div className="space-y-5">
-          <TopValue big={formatTimeL(dayIdx === 0 && cur.dt < sunset ? sunset : sunrise, tz)} sub={dayIdx === 0 && cur.dt < sunset ? T.t("todaySunset") : T.t("todaySunrise")} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
+          <TopValue big={formatTimeL(dayIdx === 0 && cur.dt < sunset ? sunset : sunrise, tz)} sub={dayIdx === 0 && cur.dt < sunset ? T.t("todaySunset") : T.t("todaySunrise")} rightSlot={<MetricSelector metrics={metrics} active={key} onSelect={setKey} icon={heading.icon} />} />
           <SunPath progress={progress} />
           <div className="divide-y divide-detail-line border-y border-detail-line">
             <DataRow label={T.t("firstLight")} value={formatTimeL(sunrise - 27 * 60, tz)} />
@@ -793,7 +793,7 @@ export function MetricDetail({
   );
 }
 
-function MetricSelector({ metrics: items, key: current, onSelect, icon }: { metrics: { k: MetricKey; icon: React.ReactNode; label: string }[]; key: MetricKey; onSelect: (k: MetricKey) => void; icon: React.ReactNode }) {
+function MetricSelector({ metrics: items, active, onSelect, icon }: { metrics: { k: MetricKey; icon: React.ReactNode; label: string }[]; active: MetricKey; onSelect: (k: MetricKey) => void; icon: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -805,8 +805,8 @@ function MetricSelector({ metrics: items, key: current, onSelect, icon }: { metr
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden="true" />
           <div className="absolute right-0 top-11 z-20 w-56 overflow-hidden rounded-2xl border border-detail-line bg-detail-menu py-1 shadow-2xl backdrop-blur-2xl">
             {items.map((item) => (
-              <button type="button" key={item.k} onClick={() => { onSelect(item.k); setOpen(false); }} className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-detail-control [&_svg]:h-4 [&_svg]:w-4 ${current === item.k ? "text-detail-selected-foreground" : ""}`}>
-                <span className="w-4">{current === item.k ? <Check className="h-4 w-4" /> : null}</span>{item.icon}<span>{item.label}</span>
+              <button type="button" key={item.k} onClick={() => { onSelect(item.k); setOpen(false); }} className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-detail-control [&_svg]:h-4 [&_svg]:w-4 ${active === item.k ? "text-detail-selected-foreground" : ""}`}>
+                <span className="w-4">{active === item.k ? <Check className="h-4 w-4" /> : null}</span>{item.icon}<span>{item.label}</span>
               </button>
             ))}
           </div>

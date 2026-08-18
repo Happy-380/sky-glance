@@ -16,7 +16,7 @@ import {
   convertWind, windUnitLabel, formatWind, formatPrecip, resolveTemperatureUnit,
   type SavedLocation,
 } from "@/lib/locations-store";
-import { detectLang, makeT, formatHourL, formatDayL, formatTimeL, isNightAt } from "@/lib/i18n";
+import { detectLang, makeT, formatHourL, formatDayL, formatTimeL, isNightAt, type Lang } from "@/lib/i18n";
 import { weatherGradient } from "@/lib/gradient";
 import { WeatherCards } from "@/components/WeatherCards";
 import { CityListPanel } from "@/components/CityList";
@@ -35,9 +35,17 @@ const DEFAULT: SavedLocation = {
 type Mode = "weather" | "precip" | "wind";
 
 export function WeatherApp() {
-  const lang = useMemo(() => detectLang(), []);
+  /* Deterministic initial value so SSR and the first client (hydration) render
+     match. `navigator.language` is only read after mount — reading it during
+     hydration would differ from the server and trigger a full-client re-render
+     (the "page refresh" on load). */
+  const [lang, setLang] = useState<Lang>("en");
   const T = useMemo(() => makeT(lang), [lang]);
   const owmLang = lang === "zh" ? "zh_cn" : "en";
+
+  useEffect(() => {
+    setLang(detectLang());
+  }, []);
 
   const locations = useLocations();
   const activeId = useActiveId();
@@ -63,25 +71,33 @@ export function WeatherApp() {
   const active =
     locations.find((l) => l.id === activeId) ?? locations[0] ?? DEFAULT;
 
+  /* placeholderData keeps the previous result visible while a *changed query key*
+     (active location or language) refetches. Without it, a key change briefly
+     swaps `data` back to undefined, the `{current.data && …}` tree unmounts, and
+     the whole dashboard flashes to the spinner — that is the "page refresh". */
   const current = useQuery({
     queryKey: ["current", active.lat, active.lon, units, owmLang],
     queryFn: () => getCurrent(active.lat, active.lon, units, owmLang),
+    placeholderData: (previous) => previous,
     refetchOnWindowFocus: false,
   });
   const forecast = useQuery({
     queryKey: ["forecast", active.lat, active.lon, units, owmLang],
     queryFn: () => getForecast(active.lat, active.lon, units, owmLang),
+    placeholderData: (previous) => previous,
     refetchOnWindowFocus: false,
   });
   const air = useQuery({
     queryKey: ["air", active.lat, active.lon],
     queryFn: () => getAir(active.lat, active.lon),
+    placeholderData: (previous) => previous,
     refetchOnWindowFocus: false,
   });
   // 1-hour steps + 10 days (OpenWeather's free plan tops out at 3h / 5 days)
   const om = useQuery({
     queryKey: ["om", active.lat, active.lon, units, lang],
     queryFn: () => getOpenMeteo(active.lat, active.lon, units, lang),
+    placeholderData: (previous) => previous,
     refetchOnWindowFocus: false,
   });
 
@@ -280,12 +296,12 @@ export function WeatherApp() {
         </header>
 
         <main className="flex min-w-0 flex-1 flex-col gap-4">
-          {current.isLoading && (
+          {!current.data && current.isLoading && (
             <div className="flex items-center justify-center py-24">
               <Loader2 className="h-8 w-8 animate-spin text-white/70" />
             </div>
           )}
-          {current.isError && (
+          {!current.data && current.isError && (
             <div className="rounded-2xl border border-red-300/30 bg-red-500/20 p-4 text-sm">
               {T.t("errorLoad")}
             </div>
