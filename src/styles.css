@@ -136,9 +136,11 @@
 
 .detail-chart-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 2.1rem;
+  /* axis 列紧贴 SVG 右边：无 column-gap，右侧轴宽自动收缩到 tick 内容宽度 + 间距。
+     气温 / 风 / 气压 / 降水 等所有详细页面右侧坐标与图表边界对齐，不出现空偏移。 */
+  grid-template-columns: minmax(0, 1fr) max-content;
   grid-template-rows: auto 11rem auto;
-  column-gap: 0.25rem;
+  column-gap: 0;
   align-items: start;
 }
 
@@ -149,11 +151,16 @@
 }
 
 /* Right axis: sits in row 2 only, which is exactly 11rem (= h-44) matching the SVG
-   height on the left. Top & bottom now perfectly align with the chart area. */
+   height on the left. Top & bottom now perfectly align with the chart area.
+   column-gap = 0 保证它和 SVG 内容之间没有用户看到的“偏移”空条。 */
 .detail-chart-axis {
   grid-column: 2 / 3;
   grid-row: 2 / 3;
   align-self: stretch;
+  /* 轴最小宽度: 避免 < 3 位数字(如 5级风)和 > 4 位(如 1008 hPa)跳动。
+     padding-right 提供标签离面板右边缘的呼吸感。 */
+  min-width: 2.25rem;
+  padding-right: 0.25rem;
 }
 
 /* Optional inner spacer to match header height when a header exists.
@@ -210,8 +217,12 @@
 
 @media (max-width: 420px) {
   .detail-chart-grid {
-    grid-template-columns: minmax(0, 1fr) 1.9rem;
-    column-gap: 0.15rem;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    column-gap: 0;
+  }
+  .detail-chart-axis {
+    min-width: 1.9rem;
+    padding-right: 0.15rem;
   }
 }
 
