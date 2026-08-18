@@ -140,9 +140,36 @@ function Chart({
         const last = points[points.length - 1];
         return [{ h: 0, v: first.v }, ...points, { h: 24, v: last.v }];
       })();
-  const toPath = (pts: { h: number; v: number }[]) =>
-    pts.map((point, index) => `${index ? "L" : "M"}${x(point.h).toFixed(1)} ${y(point.v).toFixed(1)}`).join(" ");
-  const line = toPath(closed);
+  /* Catmull-Rom 样条 → 三次贝塞尔。tension=0.5 最自然：曲线经过所有数据点、
+     不改变峰值位置、没有尖角。只有单点时回退为直线。 */
+  const TENSION = 0.5;
+  const toXY = (p: { h: number; v: number }) => [x(p.h), y(p.v)] as const;
+  const smoothLine = (pts: { h: number; v: number }[]) => {
+    if (pts.length < 2) {
+      return pts
+        .map((point, index) => `${index ? "L" : "M"}${x(point.h).toFixed(1)} ${y(point.v).toFixed(1)}`)
+        .join(" ");
+    }
+    /* 在两端各镜像一个虚点（切线对称），让首末两段也能平滑到达边缘。 */
+    const virtualFirst = { h: pts[0].h - (pts[1].h - pts[0].h), v: 2 * pts[0].v - pts[1].v };
+    const virtualLast = { h: pts[pts.length - 1].h - (pts[pts.length - 2].h - pts[pts.length - 1].h), v: 2 * pts[pts.length - 1].v - pts[pts.length - 2].v };
+    const seq = [virtualFirst, ...pts, virtualLast];
+    let d = "";
+    for (let i = 1; i < seq.length - 2; i++) {
+      const [p0x, p0y] = toXY(seq[i - 1]);
+      const [p1x, p1y] = toXY(seq[i]);
+      const [p2x, p2y] = toXY(seq[i + 1]);
+      const [p3x, p3y] = toXY(seq[i + 2]);
+      const cp1x = p1x + (p2x - p0x) * (TENSION / 6);
+      const cp1y = p1y + (p2y - p0y) * (TENSION / 6);
+      const cp2x = p2x - (p3x - p1x) * (TENSION / 6);
+      const cp2y = p2y - (p3y - p1y) * (TENSION / 6);
+      if (i === 1) d += `M${p1x.toFixed(1)} ${p1y.toFixed(1)} `;
+      d += `C${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${p2x.toFixed(1)} ${p2y.toFixed(1)} `;
+    }
+    return d.trim();
+  };
+  const line = smoothLine(closed);
   const fill = `${line} L${width} ${height} L0 ${height} Z`;
   const ticks = [1, 0.75, 0.5, 0.25, 0].map((fraction) => min + span * fraction);
 
@@ -160,6 +187,9 @@ function Chart({
     const mid = { h: nowHour, v: a.v + ((b.v - a.v) * (nowHour - a.h)) / (b.h - a.h || 1) };
     return { past: [...before, mid], future: [mid, ...closed.slice(i)] };
   })();
+  /* past/future 两段各使用 smoothLine 生成各自曲线，在切点处自然衔接。 */
+  const pastD = past.length ? smoothLine(past) : "";
+  const futureD = future.length ? smoothLine(future) : "";
 
   /* 读取值吸附到最近的数据点，避免显示插值出来的假数据。 */
   const scrubPoint =
@@ -212,11 +242,11 @@ function Chart({
             ) : (
               <>
                 {area && <path d={fill} fill={`url(#${gradientId})`} />}
-                {past.length > 1 && (
-                  <path d={toPath(past)} fill="none" stroke={color} strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                {pastD && (
+                  <path d={pastD} fill="none" stroke={color} strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
                 )}
-                {future.length > 1 && (
-                  <path d={toPath(future)} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                {futureD && (
+                  <path d={futureD} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
                 )}
               </>
             )}
