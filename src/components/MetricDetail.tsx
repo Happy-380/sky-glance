@@ -130,6 +130,71 @@ function niceTicks(min: number, max: number): number[] {
   return out.slice(0, 5);
 }
 
+/* ── 温度曲线按值取色：参考用户给的月度气温条配色 ──
+ * 低于参考范围 (< -10°C) 用更深蓝；高于参考范围 (> 40°C) 用更深红。
+ * 中间按：深蓝 → 蓝 → 天蓝 → 青 → 薄荷绿 → 黄绿 → 黄 → 橙 → 红 → 深红 过渡 */
+const TEMP_RAMP: { t: number; c: string }[] = [
+  { t: -20, c: "#172554" }, // 极寒：深蓝(比参考表更低 → 更深)
+  { t: -10, c: "#1E3A8A" }, // 深 蓝
+  { t: -5,  c: "#1D4ED8" },
+  { t: 0,   c: "#2563EB" }, // 蓝
+  { t: 5,   c: "#38BDF8" }, // 天蓝 (匹配 12月/1月 条)
+  { t: 10,  c: "#2DD4BF" }, // 青 (匹配 3月 条)
+  { t: 15,  c: "#6EE7B7" }, // 薄荷绿 (匹配 11月 条)
+  { t: 20,  c: "#BEF264" }, // 黄绿
+  { t: 25,  c: "#FACC15" }, // 金黄 (匹配 5月 条)
+  { t: 30,  c: "#F97316" }, // 橙 (匹配 6月/9月 条)
+  { t: 35,  c: "#EF4444" }, // 红 (匹配 7月/8月 条)
+  { t: 40,  c: "#B91C1C" }, // 深红 (比参考表更高 → 更深)
+  { t: 50,  c: "#7F1D1D" }, // 极热
+];
+
+export function temperatureStrokeColor(celsius: number): string {
+  const ramp = TEMP_RAMP;
+  if (celsius <= ramp[0].t) return ramp[0].c;
+  if (celsius >= ramp[ramp.length - 1].t) return ramp[ramp.length - 1].c;
+  for (let i = 0; i < ramp.length - 1; i++) {
+    const a = ramp[i];
+    const b = ramp[i + 1];
+    if (celsius >= a.t && celsius <= b.t) {
+      const f = (celsius - a.t) / (b.t - a.t);
+      // hex → rgb 线性插值
+      const ah = parseInt(a.c.slice(1), 16);
+      const bh = parseInt(b.c.slice(1), 16);
+      const ar = (ah >> 16) & 255, ag = (ah >> 8) & 255, ab = ah & 255;
+      const br = (bh >> 16) & 255, bg = (bh >> 8) & 255, bb = bh & 255;
+      const r = Math.round(ar + (br - ar) * f);
+      const g = Math.round(ag + (bg - ag) * f);
+      const bl = Math.round(ab + (bb - ab) * f);
+      return `rgb(${r}, ${g}, ${bl})`;
+    }
+  }
+  return ramp[ramp.length - 1].c;
+}
+
+/** 构建 SVG 垂直渐变 stops：把 ramp 中每个温度阈值映射到对应的 y 像素位置，
+ *  并生成「明色 (给实线 future)」和「暗色 (给虚线 past)」两组 stops。*/
+function buildValueGradientStops(
+  y: (v: number) => number,
+  height: number,
+  valueToColor: (v: number) => string,
+  minVal: number,
+  maxVal: number,
+): { offset: number; color: string }[] {
+  /* 在 [minVal, maxVal] 范围里均匀采样若干温度点，
+     保证渐变覆盖图表的全部 y 范围，不会出现色带断层。 */
+  const N = 40;
+  const out: { offset: number; color: string }[] = [];
+  for (let i = 0; i <= N; i++) {
+    const v = minVal + (i / N) * (maxVal - minVal);
+    const yPx = y(v);
+    // clamp to chart height so out-of-range values also contribute cap colors
+    const clamped = Math.min(Math.max(yPx, 0), height);
+    out.push({ offset: clamped / height, color: valueToColor(v) });
+  }
+  return out;
+}
+
 function Chart({
   points,
   color,
@@ -145,6 +210,7 @@ function Chart({
   formatHour,
   tz,
   scrubShowWeather,
+  valueToStrokeColor,
 }: {
   points: { h: number; v: number }[];
   color: string;
@@ -163,6 +229,9 @@ function Chart({
   tz?: number;
   /** scrub 时是否在浮动框里显示天气图标（仅气温图需要） */
   scrubShowWeather?: boolean;
+  /** 若提供，则曲线描边不再用单一 color，而是按值取色的垂直渐变
+   *  (用于气温曲线：冷=蓝、暖=橙、热=红，超范围用更深色) */
+  valueToStrokeColor?: (v: number) => string;
 }) {
   // ─── Fix A: SVG viewBox 与渲染尺寸 h-44 (176px) 完全对应 ───
   // 之前 viewBox 164 vs render 176 导致 y 方向拉伸 7%，覆盖层 top% 就对不上。
@@ -364,6 +433,73 @@ function Chart({
                 <stop offset="0%" stopColor={color} stopOpacity="0.4" />
                 <stop offset="100%" stopColor={color} stopOpacity="0.15" />
               </linearGradient>
+              {/* 按值取色的垂直渐变 (仅当 valueToStrokeColor 提供时启用)：
+                   颜色按 y 位置(即温度值) 从冷到暖过渡，
+                   实线版本给未来曲线，虚线版本给过去曲线 (每色加深 ~30% 黑) */}
+              {valueToStrokeColor &&
+                (() => {
+                  const stops = buildValueGradientStops(
+                    y,
+                    height,
+                    valueToStrokeColor,
+                    effectiveMin,
+                    effectiveMax,
+                  );
+                  // Darken helper: mix 72% original + 28% black (same ratio as original pastColor)
+                  const darken = (c: string) => {
+                    if (c.startsWith("#")) {
+                      const h = parseInt(c.slice(1), 16);
+                      const r = Math.round(((h >> 16) & 255) * 0.72);
+                      const g = Math.round(((h >> 8) & 255) * 0.72);
+                      const b = Math.round((h & 255) * 0.72);
+                      return `rgb(${r}, ${g}, ${b})`;
+                    }
+                    if (c.startsWith("rgb(")) {
+                      const nums = c
+                        .slice(4, -1)
+                        .split(",")
+                        .map((s) => Math.round(parseFloat(s.trim()) * 0.72));
+                      return `rgb(${nums[0]}, ${nums[1]}, ${nums[2]})`;
+                    }
+                    return c;
+                  };
+                  return (
+                    <>
+                      <linearGradient
+                        id={`${gid}-vstroke`}
+                        x1="0"
+                        y1="1"
+                        x2="0"
+                        y2="0"
+                        gradientUnits="userSpaceOnUse"
+                      >
+                        {stops.map((s, i) => (
+                          <stop
+                            key={`f-${i}`}
+                            offset={`${(s.offset * 100).toFixed(2)}%`}
+                            stopColor={s.color}
+                          />
+                        ))}
+                      </linearGradient>
+                      <linearGradient
+                        id={`${gid}-vstroke-past`}
+                        x1="0"
+                        y1="1"
+                        x2="0"
+                        y2="0"
+                        gradientUnits="userSpaceOnUse"
+                      >
+                        {stops.map((s, i) => (
+                          <stop
+                            key={`p-${i}`}
+                            offset={`${(s.offset * 100).toFixed(2)}%`}
+                            stopColor={darken(s.color)}
+                          />
+                        ))}
+                      </linearGradient>
+                    </>
+                  );
+                })()}
             </defs>
             {ticks.map((tick) => (
               <line
@@ -419,7 +555,11 @@ function Chart({
                   <path
                     d={staticBits.pastD}
                     fill="none"
-                    stroke={staticBits.pastColor}
+                    stroke={
+                      valueToStrokeColor
+                        ? `url(#${gid}-vstroke-past)`
+                        : staticBits.pastColor
+                    }
                     strokeWidth="3"
                     strokeDasharray="3 4"
                     strokeLinecap="round"
@@ -431,7 +571,9 @@ function Chart({
                   <path
                     d={staticBits.futureD}
                     fill="none"
-                    stroke={color}
+                    stroke={
+                      valueToStrokeColor ? `url(#${gid}-vstroke)` : color
+                    }
                     strokeWidth="3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -743,6 +885,7 @@ export function MetricDetail({
             formatHour={chartHourLabel}
             tz={tz}
             scrubShowWeather
+            valueToStrokeColor={temperatureStrokeColor}
           />
           <SegmentedControl value={tempTab} onChange={setTempTab} left={T.t("actualTemp")} right={T.t("apparentTemp")} />
           <p className="text-base text-detail-muted">{tempTab === "actual" ? T.t("actualTempDesc") : T.t("apparentTempDesc")}</p>
