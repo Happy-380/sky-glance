@@ -271,10 +271,10 @@ function Chart({
           const last = points[points.length - 1];
           return [{ h: 0, v: first.v }, ...points, { h: 24, v: last.v }];
         })();
-    const smoothLine = (pts: { h: number; v: number }[]) => {
+    const smoothSegments = (pts: { h: number; v: number }[]) => {
+      /* 返回每条单独贝塞尔段的 { d, midV, midX, xStart, xEnd } */
       const n = pts.length;
-      if (n === 0) return "";
-      if (n === 1) return `M${x(pts[0].h).toFixed(1)} ${y(pts[0].v).toFixed(1)}`;
+      if (n < 2) return [] as { d: string; midV: number; midX: number; x0: number; x1: number; v0: number; v1: number }[];
       const px = pts.map((p) => x(p.h));
       const py = pts.map((p) => y(p.v));
       const dx: number[] = [];
@@ -299,13 +299,17 @@ function Chart({
           m[i + 1] = t * b * slope[i];
         }
       }
-      let d = `M${px[0].toFixed(1)} ${py[0].toFixed(1)} `;
+      const out: { d: string; midV: number; midX: number; x0: number; x1: number; v0: number; v1: number }[] = [];
       for (let i = 0; i < n - 1; i++) {
         const third = dx[i] / 3;
-        d += `C${(px[i] + third).toFixed(1)} ${(py[i] + m[i] * third).toFixed(1)} ${(px[i + 1] - third).toFixed(1)} ${(py[i + 1] - m[i + 1] * third).toFixed(1)} ${px[i + 1].toFixed(1)} ${py[i + 1].toFixed(1)} `;
+        const d = `M${px[i].toFixed(1)} ${py[i].toFixed(1)} C${(px[i] + third).toFixed(1)} ${(py[i] + m[i] * third).toFixed(1)} ${(px[i + 1] - third).toFixed(1)} ${(py[i + 1] - m[i + 1] * third).toFixed(1)} ${px[i + 1].toFixed(1)} ${py[i + 1].toFixed(1)}`;
+        const midV = (pts[i].v + pts[i + 1].v) / 2;
+        const midX = (px[i] + px[i + 1]) / 2;
+        out.push({ d, midV, midX, x0: px[i], x1: px[i + 1], v0: pts[i].v, v1: pts[i + 1].v });
       }
-      return d.trim();
+      return out;
     };
+    const smoothLine = (segments: { d: string }[]) => segments.map((s) => s.d).join(" ") || "";
     const { past, future } = (() => {
       if (nowHour === undefined || bars) return { past: [] as { h: number; v: number }[], future: closed };
       const before: { h: number; v: number }[] = [];
@@ -318,13 +322,15 @@ function Chart({
       const mid = { h: nowHour, v: a.v + ((b.v - a.v) * (nowHour - a.h)) / (b.h - a.h || 1) };
       return { past: [...before, mid], future: [mid, ...closed.slice(i)] };
     })();
-    const pastD = past.length ? smoothLine(past) : "";
-    const futureD = future.length ? smoothLine(future) : "";
+    const pastSegs = smoothSegments(past);
+    const futureSegs = smoothSegments(future);
+    const pastD = smoothLine(pastSegs);
+    const futureD = smoothLine(futureSegs);
     const splitX = past.length ? x(past[past.length - 1].h) : 0;
     const pastFill = pastD ? `${pastD} L${splitX.toFixed(1)} ${height} L0 ${height} Z` : "";
     const futureFill = futureD ? `${futureD} L${width} ${height} L${(future.length ? x(future[0].h) : 0).toFixed(1)} ${height} Z` : "";
     const pastColor = `color-mix(in oklab, ${color} 72%, black)`;
-    return { pastD, futureD, pastFill, futureFill, pastColor };
+    return { pastD, futureD, pastFill, futureFill, pastColor, pastSegs, futureSegs };
   }, [bars, points, color, effectiveMax, effectiveMin, nowHour]);
 
   /* 极值：基于原始 points （不含 0/24 合成端点） */
@@ -433,19 +439,36 @@ function Chart({
                 <stop offset="0%" stopColor={color} stopOpacity="0.4" />
                 <stop offset="100%" stopColor={color} stopOpacity="0.15" />
               </linearGradient>
-              {/* 按值取色的垂直渐变 (仅当 valueToStrokeColor 提供时启用)：
-                   颜色按 y 位置(即温度值) 从冷到暖过渡，
-                   实线版本给未来曲线，虚线版本给过去曲线 (每色加深 ~30% 黑) */}
+              {/* 按值取色的水平渐变 + 逐段独立着色 (仅当 valueToStrokeColor 提供时启用)：
+                   颜色随 x 位置(时间)对应温度变化，而不是按 y 位置：
+                   - 曲线描边：把每条贝塞尔段作为独立 <path>，取段中点温度 color 画，
+                     实现 冷→暖→冷 的一天温度弧形渐变。
+                   - 填充：沿水平方向采样温度值生成 stops，让填充色随 x 位置同步变化。 */}
               {valueToStrokeColor &&
                 (() => {
-                  const stops = buildValueGradientStops(
-                    y,
-                    height,
-                    valueToStrokeColor,
-                    effectiveMin,
-                    effectiveMax,
-                  );
-                  // Darken helper: mix 72% original + 28% black (same ratio as original pastColor)
+                  // 水平渐变填充 stops：在 [0,24h] 区间按数据点 h, v 采样温度
+                  const N = 60;
+                  const stopList: { offset: number; color: string; v: number }[] = [];
+                  for (let i = 0; i <= N; i++) {
+                    const hh = (i / N) * 24;
+                    // 从闭合 points 列表插值 v (closed 已在最外层补齐 0/24)
+                    let vv = 0;
+                    if (points.length === 0) vv = effectiveMin;
+                    else if (hh <= 0) vv = points[0].v;
+                    else if (hh >= 24) vv = points[points.length - 1].v;
+                    else {
+                      let lo = 0;
+                      let hi = points.length - 1;
+                      while (lo < hi - 1) {
+                        const mid = (lo + hi) >> 1;
+                        if (points[mid].h <= hh) lo = mid; else hi = mid;
+                      }
+                      const a = points[lo];
+                      const b = points[hi];
+                      vv = a.v + ((b.v - a.v) * (hh - a.h)) / Math.max(b.h - a.h, 1e-6);
+                    }
+                    stopList.push({ offset: i / N, color: valueToStrokeColor(vv), v: vv });
+                  }
                   const darken = (c: string) => {
                     if (c.startsWith("#")) {
                       const h = parseInt(c.slice(1), 16);
@@ -463,78 +486,34 @@ function Chart({
                     }
                     return c;
                   };
-                  // 填充渐变: 按温度色值，但透明度从下到上 0.20 → 0.65，保持"上深下浅"
                   const fillOpacity = (i: number, n: number) => {
-                    const f = i / Math.max(n - 1, 1); // 0=底部, 1=顶部
-                    return 0.2 + 0.45 * f;
+                    const f = i / Math.max(n - 1, 1);
+                    /* 填充透明度：水平方向 (沿时间) 保持均匀的 上深下浅 垂直
+                       透明度由 CSS 属性中的 verticalOpacity 控制不在这里做，
+                       这里只给 fill 一个"底部偏亮、顶部偏深"的整体透明度值 */
+                    return 0.45 + 0.25 * Math.sin(Math.min(1, f) * Math.PI);
                   };
                   return (
                     <>
-                      <linearGradient
-                        id={`${gid}-vstroke`}
-                        x1="0"
-                        y1="1"
-                        x2="0"
-                        y2="0"
-                        gradientUnits="userSpaceOnUse"
-                      >
-                        {stops.map((s, i) => (
-                          <stop
-                            key={`f-${i}`}
-                            offset={`${(s.offset * 100).toFixed(2)}%`}
-                            stopColor={s.color}
-                          />
-                        ))}
-                      </linearGradient>
-                      <linearGradient
-                        id={`${gid}-vstroke-past`}
-                        x1="0"
-                        y1="1"
-                        x2="0"
-                        y2="0"
-                        gradientUnits="userSpaceOnUse"
-                      >
-                        {stops.map((s, i) => (
-                          <stop
-                            key={`p-${i}`}
-                            offset={`${(s.offset * 100).toFixed(2)}%`}
-                            stopColor={darken(s.color)}
-                          />
-                        ))}
-                      </linearGradient>
-                      {/* 填充渐变 - 未来 (实线区域): 明色 + 垂直透明度渐变 */}
-                      <linearGradient
-                        id={`${gid}-vfill-future`}
-                        x1="0"
-                        y1="1"
-                        x2="0"
-                        y2="0"
-                        gradientUnits="userSpaceOnUse"
-                      >
-                        {stops.map((s, i) => (
+                      {/* 填充 - 未来 (水平方向按温度值取色，配合整体的 opacity 渐变) */}
+                      <linearGradient id={`${gid}-vfill-future`} x1="0" y1="0" x2="1" y2="0">
+                        {stopList.map((s, i) => (
                           <stop
                             key={`ff-${i}`}
                             offset={`${(s.offset * 100).toFixed(2)}%`}
                             stopColor={s.color}
-                            stopOpacity={fillOpacity(i, stops.length)}
+                            stopOpacity={fillOpacity(i, stopList.length)}
                           />
                         ))}
                       </linearGradient>
-                      {/* 填充渐变 - 过去 (虚线区域): 暗色 + 更弱的透明度 */}
-                      <linearGradient
-                        id={`${gid}-vfill-past`}
-                        x1="0"
-                        y1="1"
-                        x2="0"
-                        y2="0"
-                        gradientUnits="userSpaceOnUse"
-                      >
-                        {stops.map((s, i) => (
+                      {/* 填充 - 过去：颜色加深、透明度再打 6 折 */}
+                      <linearGradient id={`${gid}-vfill-past`} x1="0" y1="0" x2="1" y2="0">
+                        {stopList.map((s, i) => (
                           <stop
                             key={`pf-${i}`}
                             offset={`${(s.offset * 100).toFixed(2)}%`}
                             stopColor={darken(s.color)}
-                            stopOpacity={fillOpacity(i, stops.length) * 0.6}
+                            stopOpacity={fillOpacity(i, stopList.length) * 0.6}
                           />
                         ))}
                       </linearGradient>
@@ -608,34 +587,84 @@ function Chart({
                     }
                   />
                 )}
-                {staticBits.pastD && (
-                  <path
-                    d={staticBits.pastD}
-                    fill="none"
-                    stroke={
-                      valueToStrokeColor
-                        ? `url(#${gid}-vstroke-past)`
-                        : staticBits.pastColor
-                    }
-                    strokeWidth="3"
-                    strokeDasharray="3 4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    vectorEffect="non-scaling-stroke"
-                  />
-                )}
-                {staticBits.futureD && (
-                  <path
-                    d={staticBits.futureD}
-                    fill="none"
-                    stroke={
-                      valueToStrokeColor ? `url(#${gid}-vstroke)` : color
-                    }
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    vectorEffect="non-scaling-stroke"
-                  />
+                {/* 描边：
+                    - 有 valueToStrokeColor 时逐段独立渲染 (每段按段中点温度取色)，
+                      实现从 冷蓝→暖黄→橙红 的水平渐变效果；
+                    - 否则仍回退为单一 path。 */}
+                {valueToStrokeColor ? (
+                  <>
+                    {/* 过去 (虚线 灰) */}
+                    {staticBits.pastSegs.map((seg, idx) => (
+                      <path
+                        key={`ps-${idx}`}
+                        d={seg.d}
+                        fill="none"
+                        stroke={(() => {
+                          const c = valueToStrokeColor(seg.midV);
+                          // 与原 pastColor 一样：72% 原色 + 28% 黑
+                          if (c.startsWith("#")) {
+                            const h = parseInt(c.slice(1), 16);
+                            const r = Math.round(((h >> 16) & 255) * 0.72);
+                            const g = Math.round(((h >> 8) & 255) * 0.72);
+                            const b = Math.round((h & 255) * 0.72);
+                            return `rgb(${r}, ${g}, ${b})`;
+                          }
+                          if (c.startsWith("rgb(")) {
+                            const nums = c
+                              .slice(4, -1)
+                              .split(",")
+                              .map((s) => Math.round(parseFloat(s.trim()) * 0.72));
+                            return `rgb(${nums[0]}, ${nums[1]}, ${nums[2]})`;
+                          }
+                          return c;
+                        })()}
+                        strokeWidth="3"
+                        strokeDasharray="3 4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    ))}
+                    {/* 未来 (实线) */}
+                    {staticBits.futureSegs.map((seg, idx) => (
+                      <path
+                        key={`fs-${idx}`}
+                        d={seg.d}
+                        fill="none"
+                        stroke={valueToStrokeColor(seg.midV)}
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {staticBits.pastD && (
+                      <path
+                        d={staticBits.pastD}
+                        fill="none"
+                        stroke={staticBits.pastColor}
+                        strokeWidth="3"
+                        strokeDasharray="3 4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    )}
+                    {staticBits.futureD && (
+                      <path
+                        d={staticBits.futureD}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    )}
+                  </>
                 )}
               </>
             )}
