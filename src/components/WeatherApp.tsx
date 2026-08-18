@@ -22,7 +22,7 @@ import { WeatherCards } from "@/components/WeatherCards";
 import { CityListPanel } from "@/components/CityList";
 import { UnitSettingsSheet } from "@/components/UnitSettings";
 import { buildHighlights } from "@/lib/highlights";
-import { MetricDetail, type MetricKey } from "@/components/MetricDetail";
+import { MetricDetail, temperatureStrokeColor, type MetricKey } from "@/components/MetricDetail";
 
 const DEFAULT: SavedLocation = {
   id: makeId(40.7128, -74.006),
@@ -455,7 +455,20 @@ export function WeatherApp() {
                                   style={{
                                     left: `${leftPct}%`,
                                     width: `${Math.max(widthPct, 6)}%`,
-                                    background: "linear-gradient(to right, #38bdf8, #fbbf24, #f97316)",
+                                    /* 每日温度条按温度真实值从左(低)到右(高)水平渐变，
+                                       与详细卡片温度曲线的色阶 (temperatureStrokeColor) 完全一致：
+                                       冷蓝 → 青绿 → 黄绿 → 金黄 → 橙 → 红 → 深红。
+                                       在 [d.min, d.max] 区间采样 12 个点生成 stops，保证平滑。 */
+                                    background: (() => {
+                                      const N = 12;
+                                      const parts: string[] = [];
+                                      for (let i = 0; i <= N; i++) {
+                                        const tCelsius = d.min + (i / N) * (d.max - d.min);
+                                        const pct = (i / N) * 100;
+                                        parts.push(`${temperatureStrokeColor(tCelsius)} ${pct.toFixed(2)}%`);
+                                      }
+                                      return `linear-gradient(to right, ${parts.join(", ")})`;
+                                    })(),
                                   }}
                                 />
                               </div>
