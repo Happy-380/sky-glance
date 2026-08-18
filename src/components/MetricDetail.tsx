@@ -17,7 +17,7 @@ import {
 import type { OMDay, OMHour } from "@/lib/openmeteo";
 import type { CurrentWeather } from "@/lib/weather";
 import { degToCompass, iconUrl } from "@/lib/weather";
-import { formatTimeL, type Lang } from "@/lib/i18n";
+import { formatTimeL, formatHourL, type Lang } from "@/lib/i18n";
 import {
   convertWind, windUnitLabel, convertPressure, convertDistance,
   convertPrecip, resolveTemperatureUnit,
@@ -101,6 +101,8 @@ function Chart({
   area = true,
   bars = false,
   header,
+  nowHour,
+  hourLabel,
 }: {
   points: { h: number; v: number }[];
   color: string;
@@ -113,10 +115,17 @@ function Chart({
       Rendered in the same column as the SVG so they line up exactly with
       the curve, the time labels and the y-axis ticks. */
   header?: React.ReactNode;
+  /** 当前本地时刻的小时数（含分钟小数，如 13.5）。设置后（即当天），
+      此前的曲线段为虚线（已过去），此后为实线（预报）。 */
+  nowHour?: number;
+  /** 把 0–24 的小时数格式化为时刻文案，用于触摸查看气泡，如"下午2时"。 */
+  hourLabel?: (hour: number) => string;
 }) {
   const width = 320;
   const height = 164;
   const span = max - min || 1;
+  /* 触摸查看：手指/光标所在的小时；null 表示未激活。 */
+  const [scrubH, setScrubH] = useState<number | null>(null);
   const x = (hour: number) => (axleFrac(hour) / 100) * width;
   const y = (value: number) => height - ((value - min) / span) * height;
   const gradientId = useMemo(() => `chart-${Math.random().toString(36).slice(2)}`, []);
@@ -131,49 +140,112 @@ function Chart({
         const last = points[points.length - 1];
         return [{ h: 0, v: first.v }, ...points, { h: 24, v: last.v }];
       })();
-  const line = closed
-    .map((point, index) => `${index ? "L" : "M"}${x(point.h).toFixed(1)} ${y(point.v).toFixed(1)}`)
-    .join(" ");
+  const toPath = (pts: { h: number; v: number }[]) =>
+    pts.map((point, index) => `${index ? "L" : "M"}${x(point.h).toFixed(1)} ${y(point.v).toFixed(1)}`).join(" ");
+  const line = toPath(closed);
   const fill = `${line} L${width} ${height} L0 ${height} Z`;
   const ticks = [1, 0.75, 0.5, 0.25, 0].map((fraction) => min + span * fraction);
+
+  /* 在 nowHour 处把曲线切成两段：左边已过去（虚线），右边是预报（实线），
+     切点通过线性插值求得，两段在切点处精确衔接。 */
+  const { past, future } = (() => {
+    if (nowHour === undefined || bars) return { past: [] as { h: number; v: number }[], future: closed };
+    const before: { h: number; v: number }[] = [];
+    let i = 0;
+    while (i < closed.length && closed[i].h < nowHour) { before.push(closed[i]); i++; }
+    if (i === 0) return { past: [] as { h: number; v: number }[], future: closed };
+    if (i >= closed.length) return { past: closed, future: [] as { h: number; v: number }[] };
+    const a = closed[i - 1];
+    const b = closed[i];
+    const mid = { h: nowHour, v: a.v + ((b.v - a.v) * (nowHour - a.h)) / (b.h - a.h || 1) };
+    return { past: [...before, mid], future: [mid, ...closed.slice(i)] };
+  })();
+
+  /* 读取值吸附到最近的数据点，避免显示插值出来的假数据。 */
+  const scrubPoint =
+    scrubH === null || !closed.length
+      ? null
+      : closed.reduce((best, p) => (Math.abs(p.h - scrubH) < Math.abs(best.h - scrubH) ? p : best));
+  const scrubFromEvent = (e: React.PointerEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const fraction = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+    setScrubH(fraction * 24);
+  };
 
   return (
     <div className="detail-chart-grid">
       <div className="detail-chart-col min-w-0">
         {header}
-        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-44 w-full overflow-visible">
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity="0.58" />
-              <stop offset="100%" stopColor={color} stopOpacity="0.06" />
-            </linearGradient>
-          </defs>
-          {[0, 0.25, 0.5, 0.75, 1].map((fraction) => (
-            <line key={fraction} x1="0" y1={height * fraction} x2={width} y2={height * fraction} className="detail-chart-line" />
-          ))}
-          {[6, 12, 18].map((hour) => (
-            <line key={hour} x1={x(hour)} y1="0" x2={x(hour)} y2={height} className="detail-chart-line detail-chart-line-dashed" />
-          ))}
-          {bars ? (
-            points.map((point) => (
-              <rect
-                key={`${point.h}-${point.v}`}
-                x={x(point.h) - 5}
-                y={y(point.v)}
-                width="10"
-                height={Math.max(height - y(point.v), 0)}
-                fill={color}
-                opacity="0.82"
-                rx="2"
-              />
-            ))
-          ) : (
+        <div
+          className="relative cursor-crosshair touch-none select-none"
+          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); scrubFromEvent(e); }}
+          onPointerMove={(e) => { if (e.buttons) scrubFromEvent(e); }}
+          onPointerCancel={() => setScrubH(null)}
+          onPointerLeave={(e) => { if (e.pointerType === "mouse" && !e.buttons) setScrubH(null); }}
+        >
+          <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-44 w-full overflow-visible">
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity="0.58" />
+                <stop offset="100%" stopColor={color} stopOpacity="0.06" />
+              </linearGradient>
+            </defs>
+            {[0, 0.25, 0.5, 0.75, 1].map((fraction) => (
+              <line key={fraction} x1="0" y1={height * fraction} x2={width} y2={height * fraction} className="detail-chart-line" />
+            ))}
+            {[6, 12, 18].map((hour) => (
+              <line key={hour} x1={x(hour)} y1="0" x2={x(hour)} y2={height} className="detail-chart-line detail-chart-line-dashed" />
+            ))}
+            {bars ? (
+              points.map((point) => (
+                <rect
+                  key={`${point.h}-${point.v}`}
+                  x={x(point.h) - 5}
+                  y={y(point.v)}
+                  width="10"
+                  height={Math.max(height - y(point.v), 0)}
+                  fill={color}
+                  opacity="0.82"
+                  rx="2"
+                />
+              ))
+            ) : (
+              <>
+                {area && <path d={fill} fill={`url(#${gradientId})`} />}
+                {past.length > 1 && (
+                  <path d={toPath(past)} fill="none" stroke={color} strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                )}
+                {future.length > 1 && (
+                  <path d={toPath(future)} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                )}
+              </>
+            )}
+          </svg>
+          {/* 触摸查看：竖线 + 曲线上的圆点 + 时刻/数值气泡 */}
+          {scrubPoint && (
             <>
-              {area && <path d={fill} fill={`url(#${gradientId})`} />}
-              <path d={line} fill="none" stroke={color} strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+              <span
+                className="pointer-events-none absolute inset-y-0 w-px bg-detail-muted/60"
+                style={{ left: `${axleFrac(scrubPoint.h)}%` }}
+              />
+              <span
+                className="pointer-events-none absolute z-10 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-detail-panel shadow-lg"
+                style={{ left: `${axleFrac(scrubPoint.h)}%`, top: `${(y(scrubPoint.v) / height) * 100}%`, background: color }}
+              />
+              <div
+                className="pointer-events-none absolute z-10 whitespace-nowrap rounded-xl border border-detail-line bg-detail-menu px-2.5 py-1 text-center shadow-xl"
+                style={{
+                  left: `${Math.min(Math.max(axleFrac(scrubPoint.h), 13), 87)}%`,
+                  top: `${(y(scrubPoint.v) / height) * 100}%`,
+                  transform: "translate(-50%, calc(-100% - 14px))",
+                }}
+              >
+                <span className="block text-sm font-semibold tabular-nums text-detail-foreground">{format(scrubPoint.v)}</span>
+                {hourLabel && <span className="block text-xs text-detail-muted">{hourLabel(scrubPoint.h)}</span>}
+              </div>
             </>
           )}
-        </svg>
+        </div>
         <div className="relative h-4 pt-1 text-xs tabular-nums text-detail-muted">
           {[0, 6, 12, 18, 24].map((hour) => (
             <span key={hour} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(hour)}%` }}>
@@ -251,6 +323,13 @@ export function MetricDetail({
 
   const points = (getValue: (hour: OMHour) => number) =>
     dayHours.map((hour) => ({ h: localParts(hour.dt, tz).hour, v: getValue(hour) }));
+  /* 当天：当前本地时刻（含分钟），用于把曲线切成"已过去/未来"两段；
+     其余天不传，整条实线。 */
+  const nowHourFrac = localParts(cur.dt, tz).hour + (cur.dt % 3600) / 3600;
+  const chartNowHour = dayIdx === 0 ? nowHourFrac : undefined;
+  /* 由当天首个数据点反推当天 0 点的时间戳，把 0–24 的小时数还原成时刻文案。 */
+  const dayStart = dayHours.length ? dayHours[0].dt - localParts(dayHours[0].dt, tz).hour * 3600 : 0;
+  const chartHourLabel = (hour: number) => formatHourL(dayStart + Math.round(hour) * 3600, tz, lang);
   const copy = (zh: string, en: string) => (lang === "zh" ? zh : en);
   const dateLabel = day
     ? (() => {
@@ -317,6 +396,8 @@ export function MetricDetail({
             min={range.min}
             max={range.max}
             format={(value) => `${toDisplayTemp(value)}${tempSuffix}`}
+            nowHour={chartNowHour}
+            hourLabel={chartHourLabel}
             header={<IconRow hours={dayHours} tz={tz} />}
           />
           <SegmentedControl value={tempTab} onChange={setTempTab} left={T.t("actualTemp")} right={T.t("apparentTemp")} />
@@ -337,6 +418,8 @@ export function MetricDetail({
             min={0}
             max={Math.max(11, Math.max(...values) + 1)}
             format={(value) => `${Math.round(value)}`}
+            nowHour={chartNowHour}
+            hourLabel={chartHourLabel}
             header={<ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.uv)}`} tz={tz} />}
           />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天紫外线最高为 ${Math.round(Math.max(...values))}（${uvLevel(Math.max(...values))}）。`, `Peak UV today is ${Math.round(Math.max(...values))} (${uvLevel(Math.max(...values))}).`)} />
@@ -360,6 +443,8 @@ export function MetricDetail({
             min={0}
             max={Math.max(convertWind(Math.max(...gustValues), unitSettings.wind).value * 1.15, 5)}
             format={(value) => `${value.toFixed(0)}`}
+            nowHour={chartNowHour}
+            hourLabel={chartHourLabel}
             header={
               <div className="relative h-8 text-detail-muted">
                 {sampleHours(dayHours, tz).map((hour) => (
@@ -382,14 +467,14 @@ export function MetricDetail({
       return (
         <div className="space-y-5">
           <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
-          <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} />
+          <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} nowHour={chartNowHour} hourLabel={chartHourLabel} />
           <Section title={T.t("precipTotal")}>
             <StatRows rows={[
               [copy("过去 24 小时", "Past 24 hours"), copy("降水", "Precipitation"), `0 ${totalConverted.label}`],
               [copy("未来 24 小时", "Next 24 hours"), T.t("rain"), `${totalConverted.value.toFixed(totalConverted.value >= 10 ? 0 : 1)} ${totalConverted.label}`],
             ]} />
           </Section>
-          {total > 0 && <Chart points={points((hour) => convertPrecip(hour.precip, unitSettings.precipitation).value)} color="var(--weather-rain)" min={0} max={convertPrecip(maximum, unitSettings.precipitation).value * 1.2} format={(value) => value.toFixed(1)} bars />}
+          {total > 0 && <Chart points={points((hour) => convertPrecip(hour.precip, unitSettings.precipitation).value)} color="var(--weather-rain)" min={0} max={convertPrecip(maximum, unitSettings.precipitation).value * 1.2} format={(value) => value.toFixed(1)} nowHour={chartNowHour} hourLabel={chartHourLabel} bars />}
           <InfoSection title={T.t("dailySummary")} text={copy(`今天的降水总量预计为 ${totalConverted.value.toFixed(1)} ${totalConverted.label === "in" ? "英寸" : "毫米"}。`, `Total precipitation today is forecast to be ${totalConverted.value.toFixed(1)} ${totalConverted.label}.`)} />
           <InfoSection title={copy("关于降水强度", "About Precipitation Intensity")} text={copy("降水强度表示每小时降雨或降雪的总量，可用于判断降水体感和持续程度。", "Precipitation intensity is the hourly rain or snow amount and indicates how strongly precipitation may be felt.")} />
         </div>
@@ -408,6 +493,8 @@ export function MetricDetail({
             min={0}
             max={100}
             format={(value) => `${Math.round(value)}%`}
+            nowHour={chartNowHour}
+            hourLabel={chartHourLabel}
             header={<ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.humidity)}%`} tz={tz} />}
           />
           <Section title={copy("每日比较", "Daily Comparison")}>
@@ -434,6 +521,8 @@ export function MetricDetail({
             min={0}
             max={Math.max(convertDistance(Math.max(...values), unitSettings.distance).value * 1.15, 20)}
             format={(value) => `${value.toFixed(0)}`}
+            nowHour={chartNowHour}
+            hourLabel={chartHourLabel}
             header={<ValueRow hours={dayHours} value={(hour) => `${convertDistance((hour.visibility || cur.visibility) / 1000, unitSettings.distance).value.toFixed(0)}`} tz={tz} />}
           />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天能见度在 ${minVal.value.toFixed(0)} 至 ${maxVal.value.toFixed(0)} ${nowConverted.label}之间。`, `Visibility ranges from ${minVal.value.toFixed(0)} to ${maxVal.value.toFixed(0)} ${nowConverted.label} today.`)} />
@@ -453,7 +542,7 @@ export function MetricDetail({
       return (
         <div className="space-y-5">
           <TopValue big={Math.round(curPressure.value).toLocaleString()} unit={curPressure.label} sub={trendLabel} trend={trend} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
-          <Chart points={points((hour) => convertPressure(hour.pressure || cur.main.pressure, unitSettings.pressure).value)} color="var(--weather-pressure)" min={convertPressure(range.min, unitSettings.pressure).value} max={convertPressure(range.max, unitSettings.pressure).value} format={(value) => `${Math.round(value)}`} />
+          <Chart points={points((hour) => convertPressure(hour.pressure || cur.main.pressure, unitSettings.pressure).value)} color="var(--weather-pressure)" min={convertPressure(range.min, unitSettings.pressure).value} max={convertPressure(range.max, unitSettings.pressure).value} format={(value) => `${Math.round(value)}`} nowHour={chartNowHour} hourLabel={chartHourLabel} />
           <InfoSection title={T.t("dailySummary")} text={copy(`当前气压为 ${Math.round(curPressure.value)} ${curPressure.label}，${trendLabel}。今天平均气压约为 ${Math.round(avgPressure.value)} ${avgPressure.label}。`, `Pressure is ${Math.round(curPressure.value)} ${curPressure.label} and ${trendLabel.toLowerCase()}. Today's average is about ${Math.round(avgPressure.value)} ${avgPressure.label}.`)} />
           <InfoSection title={copy("关于气压", "About Pressure")} text={copy("气压的显著变化可用于预测天气变化。气压降低可能表示雨雪即将来临，气压升高则可能表示天气将转好。", "Significant pressure changes can help predict weather. Falling pressure may signal rain or snow, while rising pressure can indicate improving conditions.")} />
         </div>
