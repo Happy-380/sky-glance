@@ -267,13 +267,18 @@ function Chart({
                 <stop offset="100%" stopColor={color} stopOpacity="0.15" />
               </linearGradient>
             </defs>
-            {/* 网格线 + 纵向虚线 */}
+            {/* 水平网格线 */}
             {[0, 0.25, 0.5, 0.75, 1].map((fraction) => (
               <line key={fraction} x1="0" y1={height * fraction} x2={width} y2={height * fraction} className="detail-chart-line" />
             ))}
+            {/* 时间分段虚线（6/12/18） */}
             {[6, 12, 18].map((hour) => (
               <line key={hour} x1={x(hour)} y1="0" x2={x(hour)} y2={height} className="detail-chart-line detail-chart-line-dashed" />
             ))}
+            {/* 现在分隔线（仅当天显示：在 nowHour 处画一条更明显的竖线） */}
+            {nowHour !== undefined && (
+              <line x1={x(nowHour)} y1="0" x2={x(nowHour)} y2={height} className="detail-chart-line-now" />
+            )}
             {bars ? (
               points.map((point) => (
                 <rect
@@ -292,7 +297,7 @@ function Chart({
                 {area && staticBits.pastFill && <path d={staticBits.pastFill} fill={`url(#${gid}-p)`} />}
                 {area && staticBits.futureFill && <path d={staticBits.futureFill} fill={`url(#${gid}-f)`} />}
                 {staticBits.pastD && (
-                  <path d={staticBits.pastD} fill="none" stroke={staticBits.pastColor} strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                  <path d={staticBits.pastD} fill="none" stroke={staticBits.pastColor} strokeWidth="3" strokeDasharray="3 4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
                 )}
                 {staticBits.futureD && (
                   <path d={staticBits.futureD} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
@@ -414,8 +419,8 @@ function Chart({
           ))}
         </div>
       </div>
-      {/* 温度轴：高度 h-44 (176px) 与 SVG / 定位容器完全一致 → 刻度严格对齐 */}
-      <div className="flex h-44 flex-col justify-between border-l border-detail-line pl-2 text-right text-xs tabular-nums text-detail-muted">
+      {/* 温度轴：紧贴图表右侧，左竖线与横轴分隔，宽度压缩以减少占地 */}
+      <div className="flex h-44 flex-col justify-between border-l border-detail-line pl-1 text-right text-[11px] leading-none tabular-nums text-detail-muted sm:text-xs">
         {ticks.map((tick) => <span key={tick}>{format(tick)}</span>)}
       </div>
     </div>
@@ -766,20 +771,19 @@ export function MetricDetail({
 
         <div className="detail-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {key !== "aqi" && (
-            <div className="detail-rise detail-rise-1 border-b border-detail-line px-4 pb-3 pt-3 sm:px-7">
+            <div className="detail-rise detail-rise-1 border-b border-detail-line px-4 pb-2 pt-3 sm:px-7">
               <div className="grid grid-cols-10 gap-1">
                 {days.slice(0, 10).map((item, index) => {
                   const parts = localParts(item.dt, tz);
                   const selected = index === dayIdx;
                   return (
-                    <button type="button" key={item.dt} onClick={() => setDayIdx(index)} className="flex min-w-0 flex-col items-center gap-1.5 py-1">
+                    <button type="button" key={item.dt} onClick={() => setDayIdx(index)} className="flex min-w-0 flex-col items-center gap-1 py-1">
                       <span className="truncate text-xs text-detail-muted">{T.day(parts.dow)}</span>
                       <span className={`grid h-9 w-9 max-w-full place-items-center rounded-full text-sm tabular-nums ${selected ? "bg-detail-selected font-semibold text-detail-selected-foreground" : "text-detail-foreground"}`}>{parts.day}</span>
                     </button>
                   );
                 })}
               </div>
-              <p className="pt-2 text-center text-base font-medium text-detail-foreground">{dateLabel}</p>
             </div>
           )}
 
