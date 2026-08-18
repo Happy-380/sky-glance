@@ -103,8 +103,11 @@ function Chart({
   header,
   nowHour,
   maxMin,
-  onScrub,
-  scrubContent,
+  dayHours,
+  dayStartTs,
+  formatHour,
+  tz,
+  scrubShowWeather,
 }: {
   points: { h: number; v: number }[];
   color: string;
@@ -113,33 +116,34 @@ function Chart({
   format: (v: number) => string;
   area?: boolean;
   bars?: boolean;
-  /** Optional row(s) shown above the curve (e.g. weather icons, values).
-      Rendered in the same column as the SVG so they line up exactly with
-      the curve, the time labels and the y-axis ticks. */
   header?: React.ReactNode;
-  /** 当前本地时刻的小时数（含分钟小数，如 13.5）。设置后（即当天），
-      此前的曲线段为虚线（已过去），此后为实线（预报）。 */
   nowHour?: number;
-  /** 传入后在曲线最高/最低数据点上画圆点标记和文案（如气温图）。 */
   maxMin?: { high: string; low: string };
-  /** 触摸/拖动图表时回调，传出吸附后的数据点（含格式化数值）；null 表示结束。 */
-  onScrub?: (point: { h: number; v: number; text: string } | null) => void;
-  /** 触摸查看时在数据点上方渲染的浮动提示框。接收吸附后的点，返回要渲染的内容。 */
-  scrubContent?: (point: { h: number; v: number; text: string }) => React.ReactNode;
+  /** 小时数据：scrub 时用来匹配图标和显示时刻 */
+  dayHours?: OMHour[];
+  /** 当天 0 点的时间戳，用于把小时还原成时间字符串 */
+  dayStartTs?: number;
+  /** 把时间戳格式化成"X时"的函数 */
+  formatHour?: (ts: number) => string;
+  tz?: number;
+  /** scrub 时是否在浮动框里显示天气图标（仅气温图需要） */
+  scrubShowWeather?: boolean;
 }) {
+  // ─── Fix A: SVG viewBox 与渲染尺寸 h-44 (176px) 完全对应 ───
+  // 之前 viewBox 164 vs render 176 导致 y 方向拉伸 7%，覆盖层 top% 就对不上。
   const width = 320;
-  const height = 164;
+  const height = 176;
   const span = max - min || 1;
-  /* 触摸查看：手指/光标所在的小时；null 表示未激活。 */
+
+  /* 触摸查看：仅组件内部持有 state，不回调父组件 setState → Fix C: 拖动不再级联重渲染 */
   const [scrubH, setScrubH] = useState<number | null>(null);
-  /* 指针按下标记：替代不可靠的 e.buttons（移动端触摸时常为 0） */
   const isPointerDown = useRef(false);
+
   const x = (hour: number) => (axleFrac(hour) / 100) * width;
   const y = (value: number) => height - ((value - min) / span) * height;
-  const gradientId = useMemo(() => `chart-${Math.random().toString(36).slice(2)}`, []);
-  /* The data only covers hours 0–23. Extend the curve to the visual 0 and 24
-     edges (mapped to 0% and 100% of the SVG) so the line reaches both axis
-     labels instead of leaving a gap at the right edge. */
+  const gid = useMemo(() => `g${Math.random().toString(36).slice(2, 8)}`, []);
+
+  /* 两端补齐到 0 和 24（不影响极值计算） */
   const closed = bars
     ? points
     : (() => {
@@ -148,69 +152,71 @@ function Chart({
         const last = points[points.length - 1];
         return [{ h: 0, v: first.v }, ...points, { h: 24, v: last.v }];
       })();
-  /* 单调三次插值（Fritsch–Carlson，与 d3 curveMonotoneX 同类算法）：
-     曲线经过所有数据点，极值点切线自动水平、无过冲，比 Catmull-Rom 更顺滑自然。 */
-  const smoothLine = (pts: { h: number; v: number }[]) => {
-    const n = pts.length;
-    if (n === 0) return "";
-    if (n === 1) return `M${x(pts[0].h).toFixed(1)} ${y(pts[0].v).toFixed(1)}`;
-    const px = pts.map((p) => x(p.h));
-    const py = pts.map((p) => y(p.v));
-    const dx: number[] = [];
-    const slope: number[] = [];
-    for (let i = 0; i < n - 1; i++) {
-      dx.push(px[i + 1] - px[i] || 1);
-      slope.push((py[i + 1] - py[i]) / (px[i + 1] - px[i] || 1));
-    }
-    /* 各点切线：内部点取两侧斜率均值；斜率变号（极值）处切线置 0 消除过冲。 */
-    const m: number[] = [slope[0]];
-    for (let i = 1; i < n - 1; i++) {
-      m.push(slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2);
-    }
-    m.push(slope[n - 2]);
-    for (let i = 0; i < n - 1; i++) {
-      if (slope[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
-      const a = m[i] / slope[i];
-      const b = m[i + 1] / slope[i];
-      const s = a * a + b * b;
-      if (s > 9) {
-        const t = 3 / Math.sqrt(s);
-        m[i] = t * a * slope[i];
-        m[i + 1] = t * b * slope[i];
+
+  // ─── 所有曲线路径 / 填充 / 渐变 只取决于数据 props，不依赖 scrubH 状态 ───
+  // 这样 setScrubH 引起的重渲染不会再跑一遍 smoothLine
+  const staticBits = useMemo(() => {
+    const smoothLine = (pts: { h: number; v: number }[]) => {
+      const n = pts.length;
+      if (n === 0) return "";
+      if (n === 1) return `M${x(pts[0].h).toFixed(1)} ${y(pts[0].v).toFixed(1)}`;
+      const px = pts.map((p) => x(p.h));
+      const py = pts.map((p) => y(p.v));
+      const dx: number[] = [];
+      const slope: number[] = [];
+      for (let i = 0; i < n - 1; i++) {
+        dx.push(px[i + 1] - px[i] || 1);
+        slope.push((py[i + 1] - py[i]) / (px[i + 1] - px[i] || 1));
       }
-    }
-    let d = `M${px[0].toFixed(1)} ${py[0].toFixed(1)} `;
-    for (let i = 0; i < n - 1; i++) {
-      const third = dx[i] / 3;
-      d += `C${(px[i] + third).toFixed(1)} ${(py[i] + m[i] * third).toFixed(1)} ${(px[i + 1] - third).toFixed(1)} ${(py[i + 1] - m[i + 1] * third).toFixed(1)} ${px[i + 1].toFixed(1)} ${py[i + 1].toFixed(1)} `;
-    }
-    return d.trim();
-  };
-  const ticks = [1, 0.75, 0.5, 0.25, 0].map((fraction) => min + span * fraction);
+      const m: number[] = [slope[0]];
+      for (let i = 1; i < n - 1; i++) {
+        m.push(slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2);
+      }
+      m.push(slope[n - 2]);
+      for (let i = 0; i < n - 1; i++) {
+        if (slope[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+        const a = m[i] / slope[i];
+        const b = m[i + 1] / slope[i];
+        const s = a * a + b * b;
+        if (s > 9) {
+          const t = 3 / Math.sqrt(s);
+          m[i] = t * a * slope[i];
+          m[i + 1] = t * b * slope[i];
+        }
+      }
+      let d = `M${px[0].toFixed(1)} ${py[0].toFixed(1)} `;
+      for (let i = 0; i < n - 1; i++) {
+        const third = dx[i] / 3;
+        d += `C${(px[i] + third).toFixed(1)} ${(py[i] + m[i] * third).toFixed(1)} ${(px[i + 1] - third).toFixed(1)} ${(py[i + 1] - m[i + 1] * third).toFixed(1)} ${px[i + 1].toFixed(1)} ${py[i + 1].toFixed(1)} `;
+      }
+      return d.trim();
+    };
+    const ticks = [1, 0.75, 0.5, 0.25, 0].map((fraction) => min + span * fraction);
+    const { past, future } = (() => {
+      if (nowHour === undefined || bars) return { past: [] as { h: number; v: number }[], future: closed };
+      const before: { h: number; v: number }[] = [];
+      let i = 0;
+      while (i < closed.length && closed[i].h < nowHour) { before.push(closed[i]); i++; }
+      if (i === 0) return { past: [] as { h: number; v: number }[], future: closed };
+      if (i >= closed.length) return { past: closed, future: [] as { h: number; v: number }[] };
+      const a = closed[i - 1];
+      const b = closed[i];
+      const mid = { h: nowHour, v: a.v + ((b.v - a.v) * (nowHour - a.h)) / (b.h - a.h || 1) };
+      return { past: [...before, mid], future: [mid, ...closed.slice(i)] };
+    })();
+    const pastD = past.length ? smoothLine(past) : "";
+    const futureD = future.length ? smoothLine(future) : "";
+    const splitX = past.length ? x(past[past.length - 1].h) : 0;
+    const pastFill = pastD ? `${pastD} L${splitX.toFixed(1)} ${height} L0 ${height} Z` : "";
+    const futureFill = futureD ? `${futureD} L${width} ${height} L${(future.length ? x(future[0].h) : 0).toFixed(1)} ${height} Z` : "";
+    const pastColor = `color-mix(in oklab, ${color} 72%, black)`;
+    return { pastD, futureD, pastFill, futureFill, pastColor, ticks };
+  }, [bars, closed, color, max, min, nowHour, span]); // x/y 是内部函数无闭包捕获安全; 实际依赖 points/color/min/max/nowHour
 
-  /* 在 nowHour 处把曲线切成两段：左边已过去（虚线），右边是预报（实线），
-     切点通过线性插值求得，两段在切点处精确衔接。 */
-  const { past, future } = (() => {
-    if (nowHour === undefined || bars) return { past: [] as { h: number; v: number }[], future: closed };
-    const before: { h: number; v: number }[] = [];
-    let i = 0;
-    while (i < closed.length && closed[i].h < nowHour) { before.push(closed[i]); i++; }
-    if (i === 0) return { past: [] as { h: number; v: number }[], future: closed };
-    if (i >= closed.length) return { past: closed, future: [] as { h: number; v: number }[] };
-    const a = closed[i - 1];
-    const b = closed[i];
-    const mid = { h: nowHour, v: a.v + ((b.v - a.v) * (nowHour - a.h)) / (b.h - a.h || 1) };
-    return { past: [...before, mid], future: [mid, ...closed.slice(i)] };
-  })();
-  /* past/future 两段各使用 smoothLine 生成各自曲线，在切点处自然衔接。 */
-  const pastD = past.length ? smoothLine(past) : "";
-  const futureD = future.length ? smoothLine(future) : "";
-  const splitX = past.length ? x(past[past.length - 1].h) : 0;
-  const pastFill = pastD ? `${pastD} L${splitX.toFixed(1)} ${height} L0 ${height} Z` : "";
-  const futureFill = futureD ? `${futureD} L${width} ${height} L${(future.length ? x(future[0].h) : 0).toFixed(1)} ${height} Z` : "";
+  const ticks = staticBits.ticks;
 
-  /* 最高/最低标记：取真实小时数据（不含 0/24 合成端点）的极值点。 */
-  const extremes = (() => {
+  /* 极值：基于原始 points （不含 0/24 合成端点） */
+  const extremes = useMemo(() => {
     if (!maxMin || points.length < 2) return null;
     let hi = points[0];
     let lo = points[0];
@@ -219,53 +225,53 @@ function Chart({
       if (p.v < lo.v) lo = p;
     }
     return hi === lo ? { hi, lo: null as typeof lo | null } : { hi, lo };
-  })();
+  }, [maxMin, points]);
 
-  /* 读取值吸附到最近的真实数据点，避免显示插值出来的假数据。 */
+  /* 吸附到最近的真实小时点 */
   const snap = (h: number) =>
     points.length ? points.reduce((best, p) => (Math.abs(p.h - h) < Math.abs(best.h - h) ? p : best)) : null;
   const scrubPoint = scrubH === null ? null : snap(scrubH);
-  /* 只在指针事件里回调父组件（顶部大数字区切换显示），避免渲染循环。 */
+
   const scrubFromEvent = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const fraction = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-    const h = fraction * 24;
-    setScrubH(h);
-    const p = snap(h);
-    onScrub?.(p ? { ...p, text: format(p.v) } : null);
+    setScrubH(fraction * 24);
   };
   const clearScrub = () => {
     isPointerDown.current = false;
     setScrubH(null);
-    onScrub?.(null);
   };
-  /* 已过去段用更深的颜色，和参考图一致 */
-  const pastColor = `color-mix(in oklab, ${color} 72%, black)`;
+
+  // 浮动气泡：匹配 hour，拼装成 DOM。scrub 过程只有这里的 style/内容更新，SVG 不动。
+  const scrubMatchedHour = scrubPoint && dayHours
+    ? dayHours.find((h) => (tz !== undefined ? localParts(h.dt, tz).hour : (h.dt - (dayStartTs ?? 0)) / 3600) === Math.round(scrubPoint.h))
+    : undefined;
 
   return (
     <div className="detail-chart-grid">
       <div className="detail-chart-col min-w-0">
         {header}
+        {/* Fix B: 去掉 py-4。定位容器与 SVG/温度轴三者精确同高 h-44，top% 完全对齐 */}
         <div
-          className="relative cursor-crosshair touch-none select-none py-4"
+          className="relative h-44 cursor-crosshair touch-none select-none"
           onPointerDown={(e) => { isPointerDown.current = true; e.currentTarget.setPointerCapture(e.pointerId); scrubFromEvent(e); }}
           onPointerMove={(e) => { if (isPointerDown.current) scrubFromEvent(e); }}
           onPointerCancel={clearScrub}
           onPointerUp={clearScrub}
           onPointerLeave={(e) => { if (e.pointerType === "mouse" && !isPointerDown.current) clearScrub(); }}
         >
-          <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-44 w-full overflow-visible">
+          <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-full w-full overflow-visible">
             <defs>
-              {/* 未来段背景更浓、过去段更暗，贴近系统天气的观感 */}
-              <linearGradient id={`${gradientId}-future`} x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={`${gid}-f`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity="0.75" />
                 <stop offset="100%" stopColor={color} stopOpacity="0.35" />
               </linearGradient>
-              <linearGradient id={`${gradientId}-past`} x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={`${gid}-p`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity="0.4" />
                 <stop offset="100%" stopColor={color} stopOpacity="0.15" />
               </linearGradient>
             </defs>
+            {/* 网格线 + 纵向虚线 */}
             {[0, 0.25, 0.5, 0.75, 1].map((fraction) => (
               <line key={fraction} x1="0" y1={height * fraction} x2={width} y2={height * fraction} className="detail-chart-line" />
             ))}
@@ -287,40 +293,45 @@ function Chart({
               ))
             ) : (
               <>
-                {area && pastFill && <path d={pastFill} fill={`url(#${gradientId}-past)`} />}
-                {area && futureFill && <path d={futureFill} fill={`url(#${gradientId}-future)`} />}
-                {pastD && (
-                  <path d={pastD} fill="none" stroke={pastColor} strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                {area && staticBits.pastFill && <path d={staticBits.pastFill} fill={`url(#${gid}-p)`} />}
+                {area && staticBits.futureFill && <path d={staticBits.futureFill} fill={`url(#${gid}-f)`} />}
+                {staticBits.pastD && (
+                  <path d={staticBits.pastD} fill="none" stroke={staticBits.pastColor} strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
                 )}
-                {futureD && (
-                  <path d={futureD} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                {staticBits.futureD && (
+                  <path d={staticBits.futureD} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
                 )}
               </>
             )}
           </svg>
-          {/* 最高/最低标记：圆点 + 文案，用 HTML 覆盖层渲染避免 SVG 拉伸变形。
-              智能翻转：上半区（yFrac<0.45）的标签放到圆点下方，避免与图标行重叠；
-              下半区的标签放到圆点上方。水平方向 clamp 在 8%–92%。
-              注：SVG 高度 height 与实际渲染的 h-44 有差异时按百分比定位可保持对齐。 */}
+
+          {/* 最高/最低标记。因坐标统一，圆点正好落在曲线上 */}
           {extremes && (
             <>
+              {/* 最高 */}
               {(() => {
-                const hiFrac = y(extremes.hi.v) / height;
-                const hiLabelBelow = hiFrac < 0.45;
+                const hiFrac = y(extremes.hi.v) / height; // 0=顶部, 1=底部
+                // 标签方向：离顶部近 (<22%) → 放到圆点下方; 其余放在圆点上方
+                const flipDown = hiFrac < 0.22;
                 return (
                   <>
                     <span
                       className="pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] shadow"
-                      style={{ left: `${axleFrac(extremes.hi.h)}%`, top: `${hiFrac * 100}%`, borderColor: color, background: "var(--detail-panel)" }}
+                      style={{
+                        left: `${axleFrac(extremes.hi.h)}%`,
+                        top: `${hiFrac * 100}%`,
+                        borderColor: color,
+                        background: "var(--detail-panel)",
+                      }}
                     />
                     <span
                       className="pointer-events-none absolute z-10 text-xs font-medium text-detail-muted"
                       style={{
                         left: `${Math.min(Math.max(axleFrac(extremes.hi.h), 10), 90)}%`,
                         top: `${hiFrac * 100}%`,
-                        transform: hiLabelBelow
-                          ? "translate(-50%, calc(100% + 6px))"
-                          : "translate(-50%, calc(-100% - 6px))",
+                        transform: flipDown
+                          ? "translate(-50%, calc(100% + 8px))"
+                          : "translate(-50%, calc(-100% - 8px))",
                       }}
                     >
                       {maxMin!.high}
@@ -328,23 +339,30 @@ function Chart({
                   </>
                 );
               })()}
+              {/* 最低 */}
               {extremes.lo && (() => {
                 const loFrac = y(extremes.lo.v) / height;
-                const loLabelBelow = loFrac < 0.45;
+                // 离底部近 (>78%) → 放到圆点上方；否则下方
+                const flipUp = loFrac > 0.78;
                 return (
                   <>
                     <span
                       className="pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] shadow"
-                      style={{ left: `${axleFrac(extremes.lo.h)}%`, top: `${loFrac * 100}%`, borderColor: color, background: "var(--detail-panel)" }}
+                      style={{
+                        left: `${axleFrac(extremes.lo.h)}%`,
+                        top: `${loFrac * 100}%`,
+                        borderColor: color,
+                        background: "var(--detail-panel)",
+                      }}
                     />
                     <span
                       className="pointer-events-none absolute z-10 text-xs font-medium text-detail-muted"
                       style={{
                         left: `${Math.min(Math.max(axleFrac(extremes.lo.h), 10), 90)}%`,
                         top: `${loFrac * 100}%`,
-                        transform: loLabelBelow
-                          ? "translate(-50%, calc(100% + 6px))"
-                          : "translate(-50%, calc(-100% - 6px))",
+                        transform: flipUp
+                          ? "translate(-50%, calc(-100% - 8px))"
+                          : "translate(-50%, calc(100% + 8px))",
                       }}
                     >
                       {maxMin!.low}
@@ -354,7 +372,8 @@ function Chart({
               })()}
             </>
           )}
-          {/* 触摸查看：白色竖线 + 白色圆点 + 浮动提示框（时刻/图标/数值跟随位置） */}
+
+          {/* Scrub: 竖线 + 圆点 + 浮动气泡。只改 DOM 样式，不重算 SVG */}
           {scrubPoint && (
             <>
               <span
@@ -365,24 +384,34 @@ function Chart({
                 className="pointer-events-none absolute z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-detail-foreground bg-detail-foreground shadow-lg"
                 style={{ left: `${axleFrac(scrubPoint.h)}%`, top: `${(y(scrubPoint.v) / height) * 100}%` }}
               />
-              {/* 浮动提示框：在数据点正上方，水平居中对齐；位置超出 12%–88% 范围时夹边，防止越界 */}
-              {scrubContent && (
-                <span
-                  className="pointer-events-none absolute z-20"
-                  style={{
-                    left: `${Math.min(Math.max(axleFrac(scrubPoint.h), 20), 80)}%`,
-                    top: `${(y(scrubPoint.v) / height) * 100}%`,
-                    transform: "translate(-50%, calc(-100% - 16px))",
-                  }}
-                >
-                  <div className="rounded-xl bg-detail-menu/95 px-3 py-2 text-center shadow-xl ring-1 ring-detail-line backdrop-blur-md whitespace-nowrap">
-                    {scrubContent({ ...scrubPoint, text: format(scrubPoint.v) })}
+              {/* Fix D: 浮动气泡直接在 Chart 内部渲染，接收 dayHours/formatHour，
+                  绝对不会因为父组件没传闭包而丢失。跟随 scrubPoint.h 位置 */}
+              <span
+                className="pointer-events-none absolute z-20"
+                style={{
+                  left: `${Math.min(Math.max(axleFrac(scrubPoint.h), 22), 78)}%`,
+                  top: `${(y(scrubPoint.v) / height) * 100}%`,
+                  transform: "translate(-50%, calc(-100% - 14px))",
+                }}
+              >
+                <div className="rounded-xl bg-detail-menu/95 px-3 py-2 text-center shadow-xl ring-1 ring-detail-line backdrop-blur-md whitespace-nowrap">
+                  <div className="text-xs tabular-nums text-detail-muted">
+                    {formatHour && dayStartTs !== undefined
+                      ? formatHour(dayStartTs + Math.round(scrubPoint.h) * 3600)
+                      : `${Math.round(scrubPoint.h)}:00`}
                   </div>
-                </span>
-              )}
+                  <div className="mt-0.5 flex items-center justify-center gap-1.5">
+                    {scrubShowWeather && scrubMatchedHour && (
+                      <img src={iconUrl(scrubMatchedHour.icon)} alt="" className="h-5 w-5" />
+                    )}
+                    <span className="text-lg font-semibold tabular-nums">{format(scrubPoint.v)}</span>
+                  </div>
+                </div>
+              </span>
             </>
           )}
         </div>
+        {/* 底部小时标签 (0, 6, 12, 18, 24) */}
         <div className="relative h-4 pt-1 text-xs tabular-nums text-detail-muted">
           {[0, 6, 12, 18, 24].map((hour) => (
             <span key={hour} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(hour)}%` }}>
@@ -391,6 +420,7 @@ function Chart({
           ))}
         </div>
       </div>
+      {/* 温度轴：高度 h-44 (176px) 与 SVG / 定位容器完全一致 → 刻度严格对齐 */}
       <div className="flex h-44 flex-col justify-between border-l border-detail-line pl-2 text-right text-xs tabular-nums text-detail-muted">
         {ticks.map((tick) => <span key={tick}>{format(tick)}</span>)}
       </div>
@@ -426,17 +456,11 @@ export function MetricDetail({
   const [key, setKey] = useState<MetricKey>(metric);
   const [dayIdx, setDayIdx] = useState(0);
   const [tempTab, setTempTab] = useState<"actual" | "feels">("actual");
-  /* 图表触摸查看的当前点；切换指标/日期时清空 */
-  const [scrub, setScrub] = useState<{ h: number; v: number; text: string } | null>(null);
 
   useEffect(() => {
     setKey(metric);
     setDayIdx(0);
   }, [metric]);
-
-  useEffect(() => {
-    setScrub(null);
-  }, [key, dayIdx]);
 
   useEffect(() => {
     const previous = document.body.style.overflow;
@@ -540,21 +564,13 @@ export function MetricDetail({
             max={range.max}
             format={(value) => `${toDisplayTemp(value)}${tempSuffix}`}
             nowHour={chartNowHour}
-            onScrub={setScrub}
             maxMin={{ high: T.t("chartHigh"), low: T.t("chartLow") }}
             header={<IconRow hours={dayHours} tz={tz} />}
-            scrubContent={(pt) => {
-              const hr = dayHours.find((h) => localParts(h.dt, tz).hour === Math.round(pt.h));
-              return (
-                <div className="space-y-0.5 text-center">
-                  <div className="text-xs tabular-nums text-detail-muted">{chartHourLabel(pt.h)}</div>
-                  <div className="flex items-center justify-center gap-1.5">
-                    {hr && <img src={iconUrl(hr.icon)} alt="" className="h-5 w-5" />}
-                    <span className="text-lg font-semibold tabular-nums">{pt.text}</span>
-                  </div>
-                </div>
-              );
-            }}
+            dayHours={dayHours}
+            dayStartTs={dayStart}
+            formatHour={chartHourLabel}
+            tz={tz}
+            scrubShowWeather
           />
           <SegmentedControl value={tempTab} onChange={setTempTab} left={T.t("actualTemp")} right={T.t("apparentTemp")} />
           <p className="text-base text-detail-muted">{tempTab === "actual" ? T.t("actualTempDesc") : T.t("apparentTempDesc")}</p>
@@ -575,8 +591,10 @@ export function MetricDetail({
             max={Math.max(11, Math.max(...values) + 1)}
             format={(value) => `${Math.round(value)}`}
             nowHour={chartNowHour}
-            onScrub={setScrub}
             header={<ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.uv)}`} tz={tz} />}
+            dayHours={dayHours}
+            dayStartTs={dayStart}
+            formatHour={chartHourLabel}
           />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天紫外线最高为 ${Math.round(Math.max(...values))}（${uvLevel(Math.max(...values))}）。`, `Peak UV today is ${Math.round(Math.max(...values))} (${uvLevel(Math.max(...values))}).`)} />
         </div>
@@ -600,7 +618,6 @@ export function MetricDetail({
             max={Math.max(convertWind(Math.max(...gustValues), unitSettings.wind).value * 1.15, 5)}
             format={(value) => `${value.toFixed(0)}`}
             nowHour={chartNowHour}
-            onScrub={setScrub}
             header={
               <div className="relative h-8 text-detail-muted">
                 {sampleHours(dayHours, tz).map((hour) => (
@@ -610,6 +627,9 @@ export function MetricDetail({
                 ))}
               </div>
             }
+            dayHours={dayHours}
+            dayStartTs={dayStart}
+            formatHour={chartHourLabel}
           />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天风速 ${minWind.value.toFixed(0)}–${maxWind.value.toFixed(0)} ${windUnitStr}，阵风最高 ${maxGust.value.toFixed(0)} ${windUnitStr}。`, `Wind ${minWind.value.toFixed(0)}–${maxWind.value.toFixed(0)} ${windUnitStr} today, gusting to ${maxGust.value.toFixed(0)} ${windUnitStr}.`)} />
         </div>
@@ -623,14 +643,14 @@ export function MetricDetail({
       return (
         <div className="space-y-5">
           <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
-          <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} nowHour={chartNowHour} onScrub={setScrub} />
+          <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} nowHour={chartNowHour} dayHours={dayHours} dayStartTs={dayStart} formatHour={chartHourLabel} />
           <Section title={T.t("precipTotal")}>
             <StatRows rows={[
               [copy("过去 24 小时", "Past 24 hours"), copy("降水", "Precipitation"), `0 ${totalConverted.label}`],
               [copy("未来 24 小时", "Next 24 hours"), T.t("rain"), `${totalConverted.value.toFixed(totalConverted.value >= 10 ? 0 : 1)} ${totalConverted.label}`],
             ]} />
           </Section>
-          {total > 0 && <Chart points={points((hour) => convertPrecip(hour.precip, unitSettings.precipitation).value)} color="var(--weather-rain)" min={0} max={convertPrecip(maximum, unitSettings.precipitation).value * 1.2} format={(value) => value.toFixed(1)} nowHour={chartNowHour} onScrub={setScrub} bars />}
+          {total > 0 && <Chart points={points((hour) => convertPrecip(hour.precip, unitSettings.precipitation).value)} color="var(--weather-rain)" min={0} max={convertPrecip(maximum, unitSettings.precipitation).value * 1.2} format={(value) => value.toFixed(1)} nowHour={chartNowHour} bars dayHours={dayHours} dayStartTs={dayStart} formatHour={chartHourLabel} />}
           <InfoSection title={T.t("dailySummary")} text={copy(`今天的降水总量预计为 ${totalConverted.value.toFixed(1)} ${totalConverted.label === "in" ? "英寸" : "毫米"}。`, `Total precipitation today is forecast to be ${totalConverted.value.toFixed(1)} ${totalConverted.label}.`)} />
           <InfoSection title={copy("关于降水强度", "About Precipitation Intensity")} text={copy("降水强度表示每小时降雨或降雪的总量，可用于判断降水体感和持续程度。", "Precipitation intensity is the hourly rain or snow amount and indicates how strongly precipitation may be felt.")} />
         </div>
@@ -650,8 +670,10 @@ export function MetricDetail({
             max={100}
             format={(value) => `${Math.round(value)}%`}
             nowHour={chartNowHour}
-            onScrub={setScrub}
             header={<ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.humidity)}%`} tz={tz} />}
+            dayHours={dayHours}
+            dayStartTs={dayStart}
+            formatHour={chartHourLabel}
           />
           <Section title={copy("每日比较", "Daily Comparison")}>
             <ComparisonBar label={T.t("today")} value={average} max={100} />
@@ -678,8 +700,10 @@ export function MetricDetail({
             max={Math.max(convertDistance(Math.max(...values), unitSettings.distance).value * 1.15, 20)}
             format={(value) => `${value.toFixed(0)}`}
             nowHour={chartNowHour}
-            onScrub={setScrub}
             header={<ValueRow hours={dayHours} value={(hour) => `${convertDistance((hour.visibility || cur.visibility) / 1000, unitSettings.distance).value.toFixed(0)}`} tz={tz} />}
+            dayHours={dayHours}
+            dayStartTs={dayStart}
+            formatHour={chartHourLabel}
           />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天能见度在 ${minVal.value.toFixed(0)} 至 ${maxVal.value.toFixed(0)} ${nowConverted.label}之间。`, `Visibility ranges from ${minVal.value.toFixed(0)} to ${maxVal.value.toFixed(0)} ${nowConverted.label} today.`)} />
           <InfoSection title={copy("关于能见度", "About Visibility")} text={copy("能见度表示在当前天气状况下可以清晰看见物体的最远距离。", "Visibility is the greatest distance at which objects can be clearly seen under current conditions.")} />
@@ -698,7 +722,7 @@ export function MetricDetail({
       return (
         <div className="space-y-5">
           <TopValue big={Math.round(curPressure.value).toLocaleString()} unit={curPressure.label} sub={trendLabel} trend={trend} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
-          <Chart points={points((hour) => convertPressure(hour.pressure || cur.main.pressure, unitSettings.pressure).value)} color="var(--weather-pressure)" min={convertPressure(range.min, unitSettings.pressure).value} max={convertPressure(range.max, unitSettings.pressure).value} format={(value) => `${Math.round(value)}`} nowHour={chartNowHour} onScrub={setScrub} />
+          <Chart points={points((hour) => convertPressure(hour.pressure || cur.main.pressure, unitSettings.pressure).value)} color="var(--weather-pressure)" min={convertPressure(range.min, unitSettings.pressure).value} max={convertPressure(range.max, unitSettings.pressure).value} format={(value) => `${Math.round(value)}`} nowHour={chartNowHour} dayHours={dayHours} dayStartTs={dayStart} formatHour={chartHourLabel} />
           <InfoSection title={T.t("dailySummary")} text={copy(`当前气压为 ${Math.round(curPressure.value)} ${curPressure.label}，${trendLabel}。今天平均气压约为 ${Math.round(avgPressure.value)} ${avgPressure.label}。`, `Pressure is ${Math.round(curPressure.value)} ${curPressure.label} and ${trendLabel.toLowerCase()}. Today's average is about ${Math.round(avgPressure.value)} ${avgPressure.label}.`)} />
           <InfoSection title={copy("关于气压", "About Pressure")} text={copy("气压的显著变化可用于预测天气变化。气压降低可能表示雨雪即将来临，气压升高则可能表示天气将转好。", "Significant pressure changes can help predict weather. Falling pressure may signal rain or snow, while rising pressure can indicate improving conditions.")} />
         </div>
