@@ -124,7 +124,9 @@ export function setUnitSettings(s: UnitSettings) {
 }
 
 export function useUnitSettings(): UnitSettings {
-  const [s, setS] = useState<UnitSettings>(() => getUnitSettings());
+  /* Constant first value so SSR and hydration both start from the same state;
+     localStorage is only read after mount (see useUnits above). */
+  const [s, setS] = useState<UnitSettings>(DEFAULT_UNITS);
   useEffect(() => {
     setS(getUnitSettings());
     const h = () => setS(getUnitSettings());
