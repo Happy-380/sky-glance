@@ -463,6 +463,11 @@ function Chart({
                     }
                     return c;
                   };
+                  // 填充渐变: 按温度色值，但透明度从下到上 0.20 → 0.65，保持"上深下浅"
+                  const fillOpacity = (i: number, n: number) => {
+                    const f = i / Math.max(n - 1, 1); // 0=底部, 1=顶部
+                    return 0.2 + 0.45 * f;
+                  };
                   return (
                     <>
                       <linearGradient
@@ -494,6 +499,42 @@ function Chart({
                             key={`p-${i}`}
                             offset={`${(s.offset * 100).toFixed(2)}%`}
                             stopColor={darken(s.color)}
+                          />
+                        ))}
+                      </linearGradient>
+                      {/* 填充渐变 - 未来 (实线区域): 明色 + 垂直透明度渐变 */}
+                      <linearGradient
+                        id={`${gid}-vfill-future`}
+                        x1="0"
+                        y1="1"
+                        x2="0"
+                        y2="0"
+                        gradientUnits="userSpaceOnUse"
+                      >
+                        {stops.map((s, i) => (
+                          <stop
+                            key={`ff-${i}`}
+                            offset={`${(s.offset * 100).toFixed(2)}%`}
+                            stopColor={s.color}
+                            stopOpacity={fillOpacity(i, stops.length)}
+                          />
+                        ))}
+                      </linearGradient>
+                      {/* 填充渐变 - 过去 (虚线区域): 暗色 + 更弱的透明度 */}
+                      <linearGradient
+                        id={`${gid}-vfill-past`}
+                        x1="0"
+                        y1="1"
+                        x2="0"
+                        y2="0"
+                        gradientUnits="userSpaceOnUse"
+                      >
+                        {stops.map((s, i) => (
+                          <stop
+                            key={`pf-${i}`}
+                            offset={`${(s.offset * 100).toFixed(2)}%`}
+                            stopColor={darken(s.color)}
+                            stopOpacity={fillOpacity(i, stops.length) * 0.6}
                           />
                         ))}
                       </linearGradient>
@@ -545,11 +586,27 @@ function Chart({
               ))
             ) : (
               <>
+                {/* 曲线下方填充：若有取色器则用按值的垂直渐变 (透明度降低到 30~70%，
+                   与原设计保持 "顶部深 / 底部浅" 的层次感) */}
                 {area && staticBits.pastFill && (
-                  <path d={staticBits.pastFill} fill={`url(#${gid}-p)`} />
+                  <path
+                    d={staticBits.pastFill}
+                    fill={
+                      valueToStrokeColor
+                        ? `url(#${gid}-vfill-past)`
+                        : `url(#${gid}-p)`
+                    }
+                  />
                 )}
                 {area && staticBits.futureFill && (
-                  <path d={staticBits.futureFill} fill={`url(#${gid}-f)`} />
+                  <path
+                    d={staticBits.futureFill}
+                    fill={
+                      valueToStrokeColor
+                        ? `url(#${gid}-vfill-future)`
+                        : `url(#${gid}-f)`
+                    }
+                  />
                 )}
                 {staticBits.pastD && (
                   <path
@@ -584,13 +641,17 @@ function Chart({
             )}
           </svg>
 
-          {/* 最高/最低标记 — left% 与 SVG 宽度同基准 (左列宽)，圆点精确落在曲线上 */}
+          {/* 最高/最低标记 — left% 与 SVG 宽度同基准 (左列宽)，圆点精确落在曲线上。
+               若有取色器，圆点边框颜色按对应温度值取（18°C 用绿色、25°C 用黄色、35°C 用红色）。*/}
           {extremes && (
             <>
               {/* 最高 */}
               {(() => {
                 const hiFrac = y(extremes.hi.v) / height;
                 const flipDown = hiFrac < 0.22;
+                const hiColor = valueToStrokeColor
+                  ? valueToStrokeColor(extremes.hi.v)
+                  : color;
                 return (
                   <>
                     <span
@@ -598,7 +659,7 @@ function Chart({
                       style={{
                         left: `${axleFrac(extremes.hi.h)}%`,
                         top: `${hiFrac * 100}%`,
-                        borderColor: color,
+                        borderColor: hiColor,
                         background: "var(--detail-panel)",
                       }}
                     />
@@ -622,6 +683,9 @@ function Chart({
                 (() => {
                   const loFrac = y(extremes.lo.v) / height;
                   const flipUp = loFrac > 0.78;
+                  const loColor = valueToStrokeColor
+                    ? valueToStrokeColor(extremes.lo.v)
+                    : color;
                   return (
                     <>
                       <span
@@ -629,7 +693,7 @@ function Chart({
                         style={{
                           left: `${axleFrac(extremes.lo.h)}%`,
                           top: `${loFrac * 100}%`,
-                          borderColor: color,
+                          borderColor: loColor,
                           background: "var(--detail-panel)",
                         }}
                       />
