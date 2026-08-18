@@ -104,7 +104,6 @@ function Chart({
   nowHour,
   maxMin,
   dayHours,
-  dayStartTs,
   formatHour,
   tz,
   scrubShowWeather,
@@ -121,10 +120,8 @@ function Chart({
   maxMin?: { high: string; low: string };
   /** 小时数据：scrub 时用来匹配图标和显示时刻 */
   dayHours?: OMHour[];
-  /** 当天 0 点的时间戳，用于把小时还原成时间字符串 */
-  dayStartTs?: number;
-  /** 把时间戳格式化成"X时"的函数 */
-  formatHour?: (ts: number) => string;
+  /** 把「小时数」(0–23，chartHourLabel 内部会基于当天 0 点还原成"X时")格式化的函数 */
+  formatHour?: (hour: number) => string;
   tz?: number;
   /** scrub 时是否在浮动框里显示天气图标（仅气温图需要） */
   scrubShowWeather?: boolean;
@@ -143,19 +140,18 @@ function Chart({
   const y = (value: number) => height - ((value - min) / span) * height;
   const gid = useMemo(() => `g${Math.random().toString(36).slice(2, 8)}`, []);
 
-  /* 两端补齐到 0 和 24（不影响极值计算） */
-  const closed = bars
-    ? points
-    : (() => {
-        if (!points.length) return [{ h: 0, v: 0 }];
-        const first = points[0];
-        const last = points[points.length - 1];
-        return [{ h: 0, v: first.v }, ...points, { h: 24, v: last.v }];
-      })();
-
   // ─── 所有曲线路径 / 填充 / 渐变 只取决于数据 props，不依赖 scrubH 状态 ───
   // 这样 setScrubH 引起的重渲染不会再跑一遍 smoothLine
   const staticBits = useMemo(() => {
+    /* 两端补齐到 0 和 24（不影响极值计算） */
+    const closed = bars
+      ? points
+      : (() => {
+          if (!points.length) return [{ h: 0, v: 0 }];
+          const first = points[0];
+          const last = points[points.length - 1];
+          return [{ h: 0, v: first.v }, ...points, { h: 24, v: last.v }];
+        })();
     const smoothLine = (pts: { h: number; v: number }[]) => {
       const n = pts.length;
       if (n === 0) return "";
@@ -211,7 +207,7 @@ function Chart({
     const futureFill = futureD ? `${futureD} L${width} ${height} L${(future.length ? x(future[0].h) : 0).toFixed(1)} ${height} Z` : "";
     const pastColor = `color-mix(in oklab, ${color} 72%, black)`;
     return { pastD, futureD, pastFill, futureFill, pastColor, ticks };
-  }, [bars, closed, color, max, min, nowHour, span]); // x/y 是内部函数无闭包捕获安全; 实际依赖 points/color/min/max/nowHour
+  }, [bars, points, color, max, min, nowHour]);
 
   const ticks = staticBits.ticks;
 
@@ -243,8 +239,8 @@ function Chart({
   };
 
   // 浮动气泡：匹配 hour，拼装成 DOM。scrub 过程只有这里的 style/内容更新，SVG 不动。
-  const scrubMatchedHour = scrubPoint && dayHours
-    ? dayHours.find((h) => (tz !== undefined ? localParts(h.dt, tz).hour : (h.dt - (dayStartTs ?? 0)) / 3600) === Math.round(scrubPoint.h))
+  const scrubMatchedHour = scrubPoint && dayHours && tz !== undefined
+    ? dayHours.find((h) => localParts(h.dt, tz).hour === Math.round(scrubPoint.h))
     : undefined;
 
   return (
@@ -396,9 +392,7 @@ function Chart({
               >
                 <div className="rounded-xl bg-detail-menu/95 px-3 py-2 text-center shadow-xl ring-1 ring-detail-line backdrop-blur-md whitespace-nowrap">
                   <div className="text-xs tabular-nums text-detail-muted">
-                    {formatHour && dayStartTs !== undefined
-                      ? formatHour(dayStartTs + Math.round(scrubPoint.h) * 3600)
-                      : `${Math.round(scrubPoint.h)}:00`}
+                    {formatHour ? formatHour(Math.round(scrubPoint.h)) : `${Math.round(scrubPoint.h)}:00`}
                   </div>
                   <div className="mt-0.5 flex items-center justify-center gap-1.5">
                     {scrubShowWeather && scrubMatchedHour && (
@@ -567,7 +561,6 @@ export function MetricDetail({
             maxMin={{ high: T.t("chartHigh"), low: T.t("chartLow") }}
             header={<IconRow hours={dayHours} tz={tz} />}
             dayHours={dayHours}
-            dayStartTs={dayStart}
             formatHour={chartHourLabel}
             tz={tz}
             scrubShowWeather
@@ -593,7 +586,6 @@ export function MetricDetail({
             nowHour={chartNowHour}
             header={<ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.uv)}`} tz={tz} />}
             dayHours={dayHours}
-            dayStartTs={dayStart}
             formatHour={chartHourLabel}
           />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天紫外线最高为 ${Math.round(Math.max(...values))}（${uvLevel(Math.max(...values))}）。`, `Peak UV today is ${Math.round(Math.max(...values))} (${uvLevel(Math.max(...values))}).`)} />
@@ -628,7 +620,6 @@ export function MetricDetail({
               </div>
             }
             dayHours={dayHours}
-            dayStartTs={dayStart}
             formatHour={chartHourLabel}
           />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天风速 ${minWind.value.toFixed(0)}–${maxWind.value.toFixed(0)} ${windUnitStr}，阵风最高 ${maxGust.value.toFixed(0)} ${windUnitStr}。`, `Wind ${minWind.value.toFixed(0)}–${maxWind.value.toFixed(0)} ${windUnitStr} today, gusting to ${maxGust.value.toFixed(0)} ${windUnitStr}.`)} />
@@ -643,14 +634,14 @@ export function MetricDetail({
       return (
         <div className="space-y-5">
           <TopValue big={`${Math.round((day.pop ?? 0) * 100)}%`} sub={T.t("precipChanceToday")} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
-          <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} nowHour={chartNowHour} dayHours={dayHours} dayStartTs={dayStart} formatHour={chartHourLabel} />
+          <Chart points={points((hour) => hour.pop * 100)} color="var(--weather-rain)" min={0} max={100} format={(value) => `${Math.round(value)}%`} nowHour={chartNowHour} dayHours={dayHours} formatHour={chartHourLabel} />
           <Section title={T.t("precipTotal")}>
             <StatRows rows={[
               [copy("过去 24 小时", "Past 24 hours"), copy("降水", "Precipitation"), `0 ${totalConverted.label}`],
               [copy("未来 24 小时", "Next 24 hours"), T.t("rain"), `${totalConverted.value.toFixed(totalConverted.value >= 10 ? 0 : 1)} ${totalConverted.label}`],
             ]} />
           </Section>
-          {total > 0 && <Chart points={points((hour) => convertPrecip(hour.precip, unitSettings.precipitation).value)} color="var(--weather-rain)" min={0} max={convertPrecip(maximum, unitSettings.precipitation).value * 1.2} format={(value) => value.toFixed(1)} nowHour={chartNowHour} bars dayHours={dayHours} dayStartTs={dayStart} formatHour={chartHourLabel} />}
+          {total > 0 && <Chart points={points((hour) => convertPrecip(hour.precip, unitSettings.precipitation).value)} color="var(--weather-rain)" min={0} max={convertPrecip(maximum, unitSettings.precipitation).value * 1.2} format={(value) => value.toFixed(1)} nowHour={chartNowHour} bars dayHours={dayHours} formatHour={chartHourLabel} />}
           <InfoSection title={T.t("dailySummary")} text={copy(`今天的降水总量预计为 ${totalConverted.value.toFixed(1)} ${totalConverted.label === "in" ? "英寸" : "毫米"}。`, `Total precipitation today is forecast to be ${totalConverted.value.toFixed(1)} ${totalConverted.label}.`)} />
           <InfoSection title={copy("关于降水强度", "About Precipitation Intensity")} text={copy("降水强度表示每小时降雨或降雪的总量，可用于判断降水体感和持续程度。", "Precipitation intensity is the hourly rain or snow amount and indicates how strongly precipitation may be felt.")} />
         </div>
@@ -672,7 +663,6 @@ export function MetricDetail({
             nowHour={chartNowHour}
             header={<ValueRow hours={dayHours} value={(hour) => `${Math.round(hour.humidity)}%`} tz={tz} />}
             dayHours={dayHours}
-            dayStartTs={dayStart}
             formatHour={chartHourLabel}
           />
           <Section title={copy("每日比较", "Daily Comparison")}>
@@ -702,7 +692,6 @@ export function MetricDetail({
             nowHour={chartNowHour}
             header={<ValueRow hours={dayHours} value={(hour) => `${convertDistance((hour.visibility || cur.visibility) / 1000, unitSettings.distance).value.toFixed(0)}`} tz={tz} />}
             dayHours={dayHours}
-            dayStartTs={dayStart}
             formatHour={chartHourLabel}
           />
           <InfoSection title={T.t("dailySummary")} text={copy(`今天能见度在 ${minVal.value.toFixed(0)} 至 ${maxVal.value.toFixed(0)} ${nowConverted.label}之间。`, `Visibility ranges from ${minVal.value.toFixed(0)} to ${maxVal.value.toFixed(0)} ${nowConverted.label} today.`)} />
@@ -722,7 +711,7 @@ export function MetricDetail({
       return (
         <div className="space-y-5">
           <TopValue big={Math.round(curPressure.value).toLocaleString()} unit={curPressure.label} sub={trendLabel} trend={trend} rightSlot={<MetricSelector metrics={metrics} key={key} onSelect={setKey} icon={heading.icon} />} />
-          <Chart points={points((hour) => convertPressure(hour.pressure || cur.main.pressure, unitSettings.pressure).value)} color="var(--weather-pressure)" min={convertPressure(range.min, unitSettings.pressure).value} max={convertPressure(range.max, unitSettings.pressure).value} format={(value) => `${Math.round(value)}`} nowHour={chartNowHour} dayHours={dayHours} dayStartTs={dayStart} formatHour={chartHourLabel} />
+          <Chart points={points((hour) => convertPressure(hour.pressure || cur.main.pressure, unitSettings.pressure).value)} color="var(--weather-pressure)" min={convertPressure(range.min, unitSettings.pressure).value} max={convertPressure(range.max, unitSettings.pressure).value} format={(value) => `${Math.round(value)}`} nowHour={chartNowHour} dayHours={dayHours} formatHour={chartHourLabel} />
           <InfoSection title={T.t("dailySummary")} text={copy(`当前气压为 ${Math.round(curPressure.value)} ${curPressure.label}，${trendLabel}。今天平均气压约为 ${Math.round(avgPressure.value)} ${avgPressure.label}。`, `Pressure is ${Math.round(curPressure.value)} ${curPressure.label} and ${trendLabel.toLowerCase()}. Today's average is about ${Math.round(avgPressure.value)} ${avgPressure.label}.`)} />
           <InfoSection title={copy("关于气压", "About Pressure")} text={copy("气压的显著变化可用于预测天气变化。气压降低可能表示雨雪即将来临，气压升高则可能表示天气将转好。", "Significant pressure changes can help predict weather. Falling pressure may signal rain or snow, while rising pressure can indicate improving conditions.")} />
         </div>
@@ -795,7 +784,7 @@ export function MetricDetail({
           )}
 
           <div className="px-5 pb-9 pt-2 sm:px-8">
-            <DetailBody />
+            {DetailBody()}
           </div>
         </div>
       </section>
