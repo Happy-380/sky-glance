@@ -248,7 +248,6 @@ function Chart({
     <div className="detail-chart-grid">
       <div className="detail-chart-col min-w-0">
         {header}
-        {/* Fix B: 去掉 py-4。定位容器与 SVG/温度轴三者精确同高 h-44，top% 完全对齐 */}
         <div
           className="relative h-44 cursor-crosshair touch-none select-none"
           onPointerDown={(e) => { isPointerDown.current = true; e.currentTarget.setPointerCapture(e.pointerId); scrubFromEvent(e); }}
@@ -424,8 +423,8 @@ function Chart({
           ))}
         </div>
       </div>
-      {/* 温度轴：紧贴图表右侧，通过 grid 定位到 row 2（SVG 行），与图表高度严格对齐（11rem=h-44）。
-           竖线 + 刻度都不再因为 header 占位而偏高。 */}
+      {/* 温度轴：与图表左列零距离对齐（CSS Grid column-gap = 0），
+           轴竖线 = SVG 右边界，不再出现空行/错位。 */}
       <div className="detail-chart-axis flex flex-col justify-between border-l border-detail-line pl-1 text-right text-[11px] leading-none tabular-nums text-detail-muted sm:text-xs">
         {ticks.map((tick) => <span key={tick}>{format(tick)}</span>)}
       </div>
