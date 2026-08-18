@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { Search, Loader2, Trash2, MoreHorizontal, Check, Pencil, ChevronLeft, X } from "lucide-react";
@@ -168,11 +167,7 @@ export function CityListPanel({
         ))}
       </div>
 
-      {unitsOpen &&
-        createPortal(
-          <UnitSettingsSheet onClose={() => setUnitsOpen(false)} />,
-          document.body
-        )}
+      {unitsOpen && <UnitSettingsSheet onClose={() => setUnitsOpen(false)} />}
     </div>
   );
 }

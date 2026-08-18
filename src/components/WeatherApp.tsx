@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "@tanstack/react-router";
 import {
   Loader2, MapPin, List, MoreHorizontal, Check, Pencil, Sparkles,
@@ -196,19 +197,22 @@ export function WeatherApp() {
 
   return (
     <div className="page-enter min-h-screen w-full overflow-x-hidden text-white" style={{ background: bg }}>
-      {/* Wide-screen city list drawer */}
-      {drawerOpen && (
-        <div className="fixed inset-0 z-50 hidden lg:block">
-          <button
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setDrawerOpen(false)}
-            aria-label={T.t("back")}
-          />
-          <aside className="absolute inset-y-0 left-0 flex w-[380px] max-w-[85vw] flex-col overflow-hidden border-r border-white/15 bg-black/45 p-4 text-white backdrop-blur-2xl shadow-2xl">
-            <CityListPanel embedded onClose={() => setDrawerOpen(false)} />
-          </aside>
-        </div>
-      )}
+      {/* Wide-screen city list drawer. Portaled to body so the .page-enter
+         transform on this page can't become its containing block. */}
+      {drawerOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 hidden lg:block">
+            <button
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              onClick={() => setDrawerOpen(false)}
+              aria-label={T.t("back")}
+            />
+            <aside className="absolute inset-y-0 left-0 flex w-[380px] max-w-[85vw] flex-col overflow-hidden border-r border-white/15 bg-black/45 p-4 text-white backdrop-blur-2xl shadow-2xl">
+              <CityListPanel embedded onClose={() => setDrawerOpen(false)} />
+            </aside>
+          </div>,
+          document.body
+        )}
       <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-2xl flex-col px-4 pb-10 pt-3 md:px-6 lg:max-w-6xl">
 
 
