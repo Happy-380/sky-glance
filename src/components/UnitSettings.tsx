@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, ChevronDown, Check, CheckCircle2 } from "lucide-react";
 import {
@@ -73,7 +73,9 @@ function UnitDropdown<T extends string>({
     return () => document.removeEventListener("mousedown", h);
   }, [open]);
 
-  useEffect(() => {
+  /* Measure before paint (layout effect) so the menu never flashes at
+     the top-left corner on its first frame. */
+  useLayoutEffect(() => {
     if (!open) return;
     const rect = ref.current?.getBoundingClientRect();
     if (!rect) return;
@@ -179,7 +181,10 @@ export function UnitSettingsSheet({ onClose }: { onClose: () => void }) {
     local.pressure === DEFAULT_UNITS.pressure &&
     local.distance === DEFAULT_UNITS.distance;
 
-  return (
+  /* Render at document.body level: page containers run the .page-enter
+     transform animation, and a transformed ancestor becomes the containing
+     block for fixed children — which would misplace this overlay. */
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-5">
       <button
         type="button"
@@ -295,6 +300,7 @@ export function UnitSettingsSheet({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Check,
   ChevronDown,
@@ -489,7 +490,10 @@ export function MetricDetail({
     return null;
   }
 
-  return (
+  /* Render at document.body level: page containers run the .page-enter
+     transform animation, and a transformed ancestor becomes the containing
+     block for fixed children — which would misplace this overlay. */
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-5">
       <button type="button" className="detail-fade-enter absolute inset-0 bg-detail-overlay backdrop-blur-sm" onClick={onClose} aria-label={T.t("close")} />
       <section role="dialog" aria-modal="true" aria-label={heading.label} className="detail-sheet-enter relative z-10 flex max-h-[94dvh] w-full max-w-[640px] flex-col overflow-hidden rounded-t-[28px] border border-detail-line bg-detail-panel text-detail-foreground shadow-2xl backdrop-blur-2xl sm:max-h-[88dvh] sm:rounded-[28px]">
@@ -526,7 +530,8 @@ export function MetricDetail({
           </div>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
