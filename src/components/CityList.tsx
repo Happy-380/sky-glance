@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { Search, Loader2, Trash2, MoreHorizontal, Check, Pencil, ChevronLeft, X } from "lucide-react";
-import { geocode, getCurrent, iconUrl, type GeoCity } from "@/lib/weather";
+import { geocode, getCurrent, weatherImage, type GeoCity } from "@/lib/weather";
 import {
   useLocations, useUnits, setUnitsPref, addLocation, removeLocation,
   setActiveId, makeId, type SavedLocation,
@@ -236,7 +236,13 @@ function CityCard({ loc, units, owmLang, editing, compact, T, onOpen, onRemove }
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {d && <img src={iconUrl(d.weather[0].icon)} alt="" className={compact ? "h-7 w-7" : "h-8 w-8"} />}
+            {d && (
+              <img
+                src={weatherImage(d.weather[0].id, d.weather[0].icon)}
+                alt=""
+                className={`${compact ? "h-7 w-7" : "h-8 w-8"} object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]`}
+              />
+            )}
             <span className={`font-light ${compact ? "text-3xl" : "text-4xl"}`}>{d ? Math.round(d.main.temp) : "—"}°</span>
           </div>
         </div>

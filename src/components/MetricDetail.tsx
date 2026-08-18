@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import type { OMDay, OMHour } from "@/lib/openmeteo";
 import type { CurrentWeather } from "@/lib/weather";
-import { degToCompass, iconUrl } from "@/lib/weather";
+import { degToCompass, weatherImage, weatherImageFromIcon } from "@/lib/weather";
+import { weatherImageForWmo } from "@/lib/openmeteo";
 import { formatTimeL, formatHourL, type Lang } from "@/lib/i18n";
 import {
   convertWind, windUnitLabel, convertPressure, convertDistance,
@@ -401,7 +402,11 @@ function Chart({
                   </div>
                   <div className="mt-0.5 flex items-center justify-center gap-1.5">
                     {scrubShowWeather && scrubMatchedHour && (
-                      <img src={iconUrl(scrubMatchedHour.icon)} alt="" className="h-5 w-5" />
+                      <img
+                        src={weatherImageForWmo(scrubMatchedHour.code, !scrubMatchedHour.isDay)}
+                        alt=""
+                        className="h-5 w-5 object-contain"
+                      />
                     )}
                     <span className="text-lg font-semibold tabular-nums">{format(scrubPoint.v)}</span>
                   </div>
@@ -554,7 +559,19 @@ export function MetricDetail({
           <TopValue
             big={`${toDisplayTemp(dayIdx === 0 ? (tempTab === "actual" ? cur.main.temp : cur.main.feels_like) : values[0])}${tempSuffix}`}
             sub={tempTab === "actual" ? `${T.t("high")} ${toDisplayTemp(day.max)}${tempSuffix}  ${T.t("low")} ${toDisplayTemp(day.min)}${tempSuffix}` : `${T.t("actualTemp")} ${toDisplayTemp(dayIdx === 0 ? cur.main.temp : dayHours[0].temp)}${tempSuffix}`}
-            inlineIcon={<img src={iconUrl(dayIdx === 0 ? cur.weather[0].icon : day.icon)} alt="" className="h-12 w-12 sm:h-14 sm:w-14" />}
+            inlineIcon={
+              <img
+                src={
+                  dayIdx === 0
+                    ? weatherImage(cur.weather[0].id, cur.weather[0].icon)
+                    : typeof (day as any).code === "number"
+                      ? weatherImageForWmo((day as any).code, false)
+                      : weatherImageFromIcon(day.icon)
+                }
+                alt=""
+                className="h-12 w-12 object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)] sm:h-14 sm:w-14"
+              />
+            }
             rightSlot={<MetricSelector metrics={metrics} active={key} onSelect={setKey} icon={heading.icon} />}
           />
           <Chart
@@ -850,7 +867,13 @@ function IconRow({ hours, tz }: { hours: OMHour[]; tz: number }) {
   return (
     <div className="relative h-5 sm:h-6">
       {sample.map((hour) => (
-        <img key={hour.dt} src={iconUrl(hour.icon)} alt="" className="absolute top-0 h-5 w-5 -translate-x-1/2 sm:h-6 sm:w-6" style={{ left: `${hour.pos}%` }} />
+        <img
+          key={hour.dt}
+          src={weatherImageForWmo(hour.code, !hour.isDay)}
+          alt=""
+          className="absolute top-0 h-5 w-5 -translate-x-1/2 object-contain sm:h-6 sm:w-6"
+          style={{ left: `${hour.pos}%` }}
+        />
       ))}
     </div>
   );

@@ -48,6 +48,81 @@ export interface OMForecast {
   utcOffset: number;
 }
 
+/**
+ * Map an Open-Meteo WMO weather code (and day/night flag) to the bundled
+ * custom weather image asset in /src/assets/images/. Used by the 24-hour,
+ * 10-day, and detail-panel icon slots so they render the local Apple-style
+ * icons instead of the remote OWM PNGs.
+ */
+import wClear from "@/assets/images/clear.png";
+import wClearNight from "@/assets/images/clear-night.png";
+import wPartlyCloudy from "@/assets/images/partlycloudy.png";
+import wPartlyCloudyNight from "@/assets/images/partlycloudy-night.png";
+import wCloudy from "@/assets/images/cloudy.png";
+import wCloud from "@/assets/images/cloud.png";
+import wDrizzle from "@/assets/images/drizzle.png";
+import wDrizzleNight from "@/assets/images/drizzle-night.png";
+import wRain from "@/assets/images/rain.png";
+import wHeavyRain from "@/assets/images/heavyrain.png";
+import wFreezingRain from "@/assets/images/freezingrain.png";
+import wThunderstorm from "@/assets/images/thunderstorm.png";
+import wSnow from "@/assets/images/snow.png";
+import wHeavySnow from "@/assets/images/heavysnow.png";
+import wMist from "@/assets/images/mist.png";
+import wFog from "@/assets/images/fog.png";
+import wHaze from "@/assets/images/haze.png";
+
+const WMO_IMAGE_FALLBACK = wCloud;
+
+export function weatherImageForWmo(code: number, night = false): string {
+  switch (code) {
+    case 0:
+    case 1:
+      return night ? wClearNight : wClear;
+    case 2:
+      return night ? wPartlyCloudyNight : wPartlyCloudy;
+    case 3:
+      return wCloudy;
+    case 45:
+    case 48:
+      return night ? wFog : wFog;
+    case 51:
+    case 53:
+    case 55:
+      return night ? wDrizzleNight : wDrizzle;
+    case 56:
+    case 57:
+      return wFreezingRain;
+    case 61:
+      return wRain;
+    case 63:
+    case 65:
+      return wHeavyRain;
+    case 66:
+    case 67:
+      return wFreezingRain;
+    case 71:
+    case 73:
+      return wSnow;
+    case 75:
+    case 77:
+      return wHeavySnow;
+    case 80:
+    case 81:
+    case 82:
+      return wHeavyRain;
+    case 85:
+    case 86:
+      return wHeavySnow;
+    case 95:
+    case 96:
+    case 99:
+      return wThunderstorm;
+    default:
+      return code >= 40 && code < 49 ? wMist : WMO_IMAGE_FALLBACK;
+  }
+}
+
 const WMO: Record<number, { d: string; n: string; zh: string; en: string }> = {
   0: { d: "01d", n: "01n", zh: "晴", en: "Clear sky" },
   1: { d: "01d", n: "01n", zh: "大致晴朗", en: "Mainly clear" },
