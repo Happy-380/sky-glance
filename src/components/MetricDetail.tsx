@@ -296,27 +296,65 @@ function Chart({
     ? dayHours.find((h) => localParts(h.dt, tz).hour === Math.round(scrubPoint.h))
     : undefined;
 
+  /* ── 核心：放弃 pr-8 + absolute 轴的混合基准，改用 flex 两列布局 ──
+   *  之前的问题：
+   *   - SVG 宽度 = 容器width - padding-right；
+   *   - 但 absolute 覆盖层元素 (最高点/竖线/气泡) 的 left% 是相对于「容器 width (含 pr-8)」
+   *   - 两者基准差了一截 padding，导致：
+   *     1) 最高最低点都整体偏右
+   *     2) scrub 竖线显示位置和手指位置不符
+   *     3) 再加上手算 padding-right 减法，越调越乱
+   *
+   *  修复：三行 (header / 曲线区+轴列 / 时间轴) 都使用完全相同的 flex 两列结构：
+   *    左列 = flex-1 (内容区，宽度精确一致)，右列 = w-7 / sm:w-8 (轴列占位，宽度也精确一致)
+   *  这样所有 left% 都以「左列宽度」为唯一基准，SVG 宽 = 覆盖层容器宽 → 完美对齐。 */
+  const axisCol = "w-7 sm:w-8 shrink-0";
+
+  const scrubFromEventFixed = (e: React.PointerEvent<HTMLDivElement>) => {
+    /* pointer 现在绑在 flex-1 左列上；该列宽 = rect.width，
+       没有任何 padding-right，所以直接 (x - left) / width 就是正确 0~1 分数。 */
+    const rect = e.currentTarget.getBoundingClientRect();
+    const fraction = Math.min(
+      Math.max((e.clientX - rect.left) / Math.max(rect.width, 1), 0),
+      1,
+    );
+    setScrubH(fraction * 24);
+  };
+
   return (
     <div className="min-w-0">
-      {/* 顶部图标/数值条：加 pr-8/sm:pr-9 与曲线内容区右边距对齐，
-           这样最右侧图标不会伸入蓝框(坐标轴)区域。 */}
-      {header && <div className="pr-8 sm:pr-9">{header}</div>}
-      {/* 关键修复：把温度轴 (蓝框) 从 CSS Grid 独立列改成 h-44 曲线容器的绝对定位。
-           这样：
-           1) 轴的高度永远等于 176px (h-44)，与红框高度(wind风向箭头的h-8)完全解耦。
-           2) 无论详细页面是「风」(上面有红框方向箭头) 还是 气温/气压/降水(无额外行)，
-              蓝框顶部都与曲线顶部精确对齐。
-           3) 容器加 pr-8/sm:pr-9 作为给轴列预留的右边距，曲线 SVG 通过 w-full 占内容区，
-              不会压到温度数字；同时 scrub 坐标计算已减去 padding-right 保持一致。 */}
-      <div
-        className="relative h-44 pr-8 cursor-crosshair touch-none select-none sm:pr-9"
-        onPointerDown={(e) => { isPointerDown.current = true; e.currentTarget.setPointerCapture(e.pointerId); scrubFromEvent(e); }}
-        onPointerMove={(e) => { if (isPointerDown.current) scrubFromEvent(e); }}
-        onPointerCancel={clearScrub}
-        onPointerUp={clearScrub}
-        onPointerLeave={(e) => { if (e.pointerType === "mouse" && !isPointerDown.current) clearScrub(); }}
-      >
-        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-full w-full overflow-visible">
+      {/* 第一行：顶部图标/数值条 — 左列内容 + 右列空占位，列宽和下面两行完全一致 */}
+      {header && (
+        <div className="flex">
+          <div className="flex-1 min-w-0">{header}</div>
+          <div className={axisCol} aria-hidden="true" />
+        </div>
+      )}
+
+      {/* 第二行：曲线区 (左列 flex-1) + 温度轴 (右列 w-7/w-8)。
+           pointer 事件只绑在左列，所以手不会误触到轴列区域。 */}
+      <div className="flex">
+        <div
+          className="relative flex-1 min-w-0 h-44 cursor-crosshair touch-none select-none"
+          onPointerDown={(e) => {
+            isPointerDown.current = true;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            scrubFromEventFixed(e);
+          }}
+          onPointerMove={(e) => {
+            if (isPointerDown.current) scrubFromEventFixed(e);
+          }}
+          onPointerCancel={clearScrub}
+          onPointerUp={clearScrub}
+          onPointerLeave={(e) => {
+            if (e.pointerType === "mouse" && !isPointerDown.current) clearScrub();
+          }}
+        >
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            preserveAspectRatio="none"
+            className="detail-chart-enter block h-full w-full overflow-visible"
+          >
             <defs>
               <linearGradient id={`${gid}-f`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity="0.75" />
@@ -327,18 +365,34 @@ function Chart({
                 <stop offset="100%" stopColor={color} stopOpacity="0.15" />
               </linearGradient>
             </defs>
-            {/* 水平网格线：与右侧轴 ticks 高度严格对应（每个轴数值都有一条同行横线），
-                 这样就不会再出现"网格线 / 轴数值"上下错位。 */}
             {ticks.map((tick) => (
-              <line key={tick} x1="0" y1={y(tick)} x2={width} y2={y(tick)} className="detail-chart-line" />
+              <line
+                key={tick}
+                x1="0"
+                y1={y(tick)}
+                x2={width}
+                y2={y(tick)}
+                className="detail-chart-line"
+              />
             ))}
-            {/* 时间分段虚线（6/12/18） */}
             {[6, 12, 18].map((hour) => (
-              <line key={hour} x1={x(hour)} y1="0" x2={x(hour)} y2={height} className="detail-chart-line detail-chart-line-dashed" />
+              <line
+                key={hour}
+                x1={x(hour)}
+                y1="0"
+                x2={x(hour)}
+                y2={height}
+                className="detail-chart-line detail-chart-line-dashed"
+              />
             ))}
-            {/* 现在分隔线（仅当天显示：在 nowHour 处画一条更明显的竖线） */}
             {nowHour !== undefined && (
-              <line x1={x(nowHour)} y1="0" x2={x(nowHour)} y2={height} className="detail-chart-line-now" />
+              <line
+                x1={x(nowHour)}
+                y1="0"
+                x2={x(nowHour)}
+                y2={height}
+                className="detail-chart-line-now"
+              />
             )}
             {bars ? (
               points.map((point) => (
@@ -355,25 +409,45 @@ function Chart({
               ))
             ) : (
               <>
-                {area && staticBits.pastFill && <path d={staticBits.pastFill} fill={`url(#${gid}-p)`} />}
-                {area && staticBits.futureFill && <path d={staticBits.futureFill} fill={`url(#${gid}-f)`} />}
+                {area && staticBits.pastFill && (
+                  <path d={staticBits.pastFill} fill={`url(#${gid}-p)`} />
+                )}
+                {area && staticBits.futureFill && (
+                  <path d={staticBits.futureFill} fill={`url(#${gid}-f)`} />
+                )}
                 {staticBits.pastD && (
-                  <path d={staticBits.pastD} fill="none" stroke={staticBits.pastColor} strokeWidth="3" strokeDasharray="3 4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                  <path
+                    d={staticBits.pastD}
+                    fill="none"
+                    stroke={staticBits.pastColor}
+                    strokeWidth="3"
+                    strokeDasharray="3 4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
                 )}
                 {staticBits.futureD && (
-                  <path d={staticBits.futureD} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                  <path
+                    d={staticBits.futureD}
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
                 )}
               </>
             )}
           </svg>
 
-          {/* 最高/最低标记。因坐标统一，圆点正好落在曲线上 */}
+          {/* 最高/最低标记 — left% 与 SVG 宽度同基准 (左列宽)，圆点精确落在曲线上 */}
           {extremes && (
             <>
               {/* 最高 */}
               {(() => {
-                const hiFrac = y(extremes.hi.v) / height; // 0=顶部, 1=底部
-                // 标签方向：离顶部近 (<22%) → 放到圆点下方; 其余放在圆点上方
+                const hiFrac = y(extremes.hi.v) / height;
                 const flipDown = hiFrac < 0.22;
                 return (
                   <>
@@ -402,40 +476,40 @@ function Chart({
                 );
               })()}
               {/* 最低 */}
-              {extremes.lo && (() => {
-                const loFrac = y(extremes.lo.v) / height;
-                // 离底部近 (>78%) → 放到圆点上方；否则下方
-                const flipUp = loFrac > 0.78;
-                return (
-                  <>
-                    <span
-                      className="pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] shadow"
-                      style={{
-                        left: `${axleFrac(extremes.lo.h)}%`,
-                        top: `${loFrac * 100}%`,
-                        borderColor: color,
-                        background: "var(--detail-panel)",
-                      }}
-                    />
-                    <span
-                      className="pointer-events-none absolute z-10 text-xs font-medium text-detail-muted"
-                      style={{
-                        left: `${Math.min(Math.max(axleFrac(extremes.lo.h), 10), 90)}%`,
-                        top: `${loFrac * 100}%`,
-                        transform: flipUp
-                          ? "translate(-50%, calc(-100% - 8px))"
-                          : "translate(-50%, calc(100% + 8px))",
-                      }}
-                    >
-                      {maxMin!.low}
-                    </span>
-                  </>
-                );
-              })()}
+              {extremes.lo &&
+                (() => {
+                  const loFrac = y(extremes.lo.v) / height;
+                  const flipUp = loFrac > 0.78;
+                  return (
+                    <>
+                      <span
+                        className="pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] shadow"
+                        style={{
+                          left: `${axleFrac(extremes.lo.h)}%`,
+                          top: `${loFrac * 100}%`,
+                          borderColor: color,
+                          background: "var(--detail-panel)",
+                        }}
+                      />
+                      <span
+                        className="pointer-events-none absolute z-10 text-xs font-medium text-detail-muted"
+                        style={{
+                          left: `${Math.min(Math.max(axleFrac(extremes.lo.h), 10), 90)}%`,
+                          top: `${loFrac * 100}%`,
+                          transform: flipUp
+                            ? "translate(-50%, calc(-100% - 8px))"
+                            : "translate(-50%, calc(100% + 8px))",
+                        }}
+                      >
+                        {maxMin!.low}
+                      </span>
+                    </>
+                  );
+                })()}
             </>
           )}
 
-          {/* Scrub: 竖线 + 圆点 + 浮动气泡。只改 DOM 样式，不重算 SVG */}
+          {/* Scrub 覆盖层 — 所有元素的 left% 都以左列 (SVG 容器) 为唯一基准 */}
           {scrubPoint && (
             <>
               <span
@@ -444,10 +518,11 @@ function Chart({
               />
               <span
                 className="pointer-events-none absolute z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-detail-foreground bg-detail-foreground shadow-lg"
-                style={{ left: `${axleFrac(scrubPoint.h)}%`, top: `${(y(scrubPoint.v) / height) * 100}%` }}
+                style={{
+                  left: `${axleFrac(scrubPoint.h)}%`,
+                  top: `${(y(scrubPoint.v) / height) * 100}%`,
+                }}
               />
-              {/* Fix D: 浮动气泡直接在 Chart 内部渲染，接收 dayHours/formatHour，
-                  绝对不会因为父组件没传闭包而丢失。跟随 scrubPoint.h 位置 */}
               <span
                 className="pointer-events-none absolute z-20"
                 style={{
@@ -458,40 +533,59 @@ function Chart({
               >
                 <div className="rounded-xl bg-detail-menu/95 px-3 py-2 text-center shadow-xl ring-1 ring-detail-line backdrop-blur-md whitespace-nowrap">
                   <div className="text-xs tabular-nums text-detail-muted">
-                    {formatHour ? formatHour(Math.round(scrubPoint.h)) : `${Math.round(scrubPoint.h)}:00`}
+                    {formatHour
+                      ? formatHour(Math.round(scrubPoint.h))
+                      : `${Math.round(scrubPoint.h)}:00`}
                   </div>
                   <div className="mt-0.5 flex items-center justify-center gap-1.5">
                     {scrubShowWeather && scrubMatchedHour && (
                       <img
-                        src={weatherImageForWmo(scrubMatchedHour.code, !scrubMatchedHour.isDay)}
+                        src={weatherImageForWmo(
+                          scrubMatchedHour.code,
+                          !scrubMatchedHour.isDay,
+                        )}
                         alt=""
                         className="h-5 w-5 object-contain"
                       />
                     )}
-                    <span className="text-lg font-semibold tabular-nums">{format(scrubPoint.v)}</span>
+                    <span className="text-lg font-semibold tabular-nums">
+                      {format(scrubPoint.v)}
+                    </span>
                   </div>
                 </div>
               </span>
             </>
           )}
-
-          {/* 蓝框：温度/数值轴 — 绝对定位贴在容器右边，高度 = 100% (也就是 h-44 = 曲线区高度)。
-               左边 border 就是 SVG 右边界。不再依赖 CSS Grid，所以 wind 页的红框
-               (h-8 风向箭头行) 再高也不会把轴顶歪。 */}
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex w-7 flex-col justify-between border-l border-detail-line pl-1 text-right text-[11px] leading-none tabular-nums text-detail-muted sm:w-8 sm:text-xs">
-            {ticks.map((tick) => <span key={tick}>{format(tick)}</span>)}
-          </div>
         </div>
-        {/* 底部小时标签 (0, 6, 12, 18, 24) — 加 pr-8/sm:pr-9 与图表内容右边距对齐，
-             这样 24 时标签正好在轴列上方(对应轴列顶底位置)。 */}
-        <div className="relative h-4 pt-1 pr-8 text-xs tabular-nums text-detail-muted sm:pr-9">
+
+        {/* 右列：温度/数值轴 — flex 兄弟节点，高 = 左列高 (h-44)，
+           左边 border 就是 SVG 右边界，不再有 absolute 的包含块疑问。 */}
+        <div
+          className={`pointer-events-none ${axisCol} flex flex-col justify-between border-l border-detail-line pl-1 text-right text-[11px] leading-none tabular-nums text-detail-muted sm:text-xs`}
+        >
+          {ticks.map((tick) => (
+            <span key={tick}>{format(tick)}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* 第三行：底部小时标签 (0, 6, 12, 18, 24) — 同样的两列结构，
+           左列 flex-1 放小时标签，24 时正好在 SVG 右端；右列空占位 */}
+      <div className="flex">
+        <div className="relative flex-1 min-w-0 h-4 pt-1 text-xs tabular-nums text-detail-muted">
           {[0, 6, 12, 18, 24].map((hour) => (
-            <span key={hour} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(hour)}%` }}>
+            <span
+              key={hour}
+              className="absolute -translate-x-1/2"
+              style={{ left: `${axleFrac(hour)}%` }}
+            >
               {hour}
             </span>
           ))}
         </div>
+        <div className={axisCol} aria-hidden="true" />
       </div>
+    </div>
   );
 }
 
