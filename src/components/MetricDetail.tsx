@@ -277,7 +277,13 @@ function Chart({
 
   const scrubFromEvent = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const fraction = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+    /* h-44 容器右侧有 pr-8（给温度轴留空），
+       计算分数时必须用「内容区宽度」(不含 padding-right)，
+       这样手触摸的 x% 才和 SVG 内部的 0–24 小时水平坐标严格一一对应。 */
+    const style = window.getComputedStyle(e.currentTarget);
+    const pr = parseFloat(style.paddingRight || "0");
+    const contentWidth = Math.max(rect.width - pr, 1);
+    const fraction = Math.min(Math.max((e.clientX - rect.left) / contentWidth, 0), 1);
     setScrubH(fraction * 24);
   };
   const clearScrub = () => {
@@ -291,18 +297,24 @@ function Chart({
     : undefined;
 
   return (
-    <div className="detail-chart-grid">
-      <div className="detail-chart-col min-w-0">
-        {header}
-        <div
-          className="relative h-44 cursor-crosshair touch-none select-none"
-          onPointerDown={(e) => { isPointerDown.current = true; e.currentTarget.setPointerCapture(e.pointerId); scrubFromEvent(e); }}
-          onPointerMove={(e) => { if (isPointerDown.current) scrubFromEvent(e); }}
-          onPointerCancel={clearScrub}
-          onPointerUp={clearScrub}
-          onPointerLeave={(e) => { if (e.pointerType === "mouse" && !isPointerDown.current) clearScrub(); }}
-        >
-          <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-full w-full overflow-visible">
+    <div className="min-w-0">
+      {header}
+      {/* 关键修复：把温度轴 (蓝框) 从 CSS Grid 独立列改成 h-44 曲线容器的绝对定位。
+           这样：
+           1) 轴的高度永远等于 176px (h-44)，与红框高度(wind风向箭头的h-8)完全解耦。
+           2) 无论详细页面是「风」(上面有红框方向箭头) 还是 气温/气压/降水(无额外行)，
+              蓝框顶部都与曲线顶部精确对齐。
+           3) 容器加 pr-8/sm:pr-9 作为给轴列预留的右边距，曲线 SVG 通过 w-full 占内容区，
+              不会压到温度数字；同时 scrub 坐标计算已减去 padding-right 保持一致。 */}
+      <div
+        className="relative h-44 pr-8 cursor-crosshair touch-none select-none sm:pr-9"
+        onPointerDown={(e) => { isPointerDown.current = true; e.currentTarget.setPointerCapture(e.pointerId); scrubFromEvent(e); }}
+        onPointerMove={(e) => { if (isPointerDown.current) scrubFromEvent(e); }}
+        onPointerCancel={clearScrub}
+        onPointerUp={clearScrub}
+        onPointerLeave={(e) => { if (e.pointerType === "mouse" && !isPointerDown.current) clearScrub(); }}
+      >
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-full w-full overflow-visible">
             <defs>
               <linearGradient id={`${gid}-f`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity="0.75" />
@@ -460,9 +472,17 @@ function Chart({
               </span>
             </>
           )}
+
+          {/* 蓝框：温度/数值轴 — 绝对定位贴在容器右边，高度 = 100% (也就是 h-44 = 曲线区高度)。
+               左边 border 就是 SVG 右边界。不再依赖 CSS Grid，所以 wind 页的红框
+               (h-8 风向箭头行) 再高也不会把轴顶歪。 */}
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex w-7 flex-col justify-between border-l border-detail-line pl-1 text-right text-[11px] leading-none tabular-nums text-detail-muted sm:w-8 sm:text-xs">
+            {ticks.map((tick) => <span key={tick}>{format(tick)}</span>)}
+          </div>
         </div>
-        {/* 底部小时标签 (0, 6, 12, 18, 24) */}
-        <div className="relative h-4 pt-1 text-xs tabular-nums text-detail-muted">
+        {/* 底部小时标签 (0, 6, 12, 18, 24) — 加 pr-8/sm:pr-9 与图表内容右边距对齐，
+             这样 24 时标签正好在轴列上方(对应轴列顶底位置)。 */}
+        <div className="relative h-4 pt-1 pr-8 text-xs tabular-nums text-detail-muted sm:pr-9">
           {[0, 6, 12, 18, 24].map((hour) => (
             <span key={hour} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(hour)}%` }}>
               {hour}
@@ -470,12 +490,6 @@ function Chart({
           ))}
         </div>
       </div>
-      {/* 温度轴：与图表左列零距离对齐（CSS Grid column-gap = 0），
-           轴竖线 = SVG 右边界，不再出现空行/错位。 */}
-      <div className="detail-chart-axis flex flex-col justify-between border-l border-detail-line pl-1 text-right text-[11px] leading-none tabular-nums text-detail-muted sm:text-xs">
-        {ticks.map((tick) => <span key={tick}>{format(tick)}</span>)}
-      </div>
-    </div>
   );
 }
 
