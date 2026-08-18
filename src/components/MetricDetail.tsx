@@ -103,6 +103,7 @@ function Chart({
   header,
   nowHour,
   hourLabel,
+  maxMin,
 }: {
   points: { h: number; v: number }[];
   color: string;
@@ -120,6 +121,8 @@ function Chart({
   nowHour?: number;
   /** 把 0–24 的小时数格式化为时刻文案，用于触摸查看气泡，如"下午2时"。 */
   hourLabel?: (hour: number) => string;
+  /** 传入后在曲线最高/最低数据点上画圆点标记和文案（如气温图）。 */
+  maxMin?: { high: string; low: string };
 }) {
   const width = 320;
   const height = 164;
@@ -140,37 +143,44 @@ function Chart({
         const last = points[points.length - 1];
         return [{ h: 0, v: first.v }, ...points, { h: 24, v: last.v }];
       })();
-  /* Catmull-Rom 样条 → 三次贝塞尔。tension=0.5 最自然：曲线经过所有数据点、
-     不改变峰值位置、没有尖角。只有单点时回退为直线。 */
-  const TENSION = 0.5;
-  const toXY = (p: { h: number; v: number }) => [x(p.h), y(p.v)] as const;
+  /* 单调三次插值（Fritsch–Carlson，与 d3 curveMonotoneX 同类算法）：
+     曲线经过所有数据点，极值点切线自动水平、无过冲，比 Catmull-Rom 更顺滑自然。 */
   const smoothLine = (pts: { h: number; v: number }[]) => {
-    if (pts.length < 2) {
-      return pts
-        .map((point, index) => `${index ? "L" : "M"}${x(point.h).toFixed(1)} ${y(point.v).toFixed(1)}`)
-        .join(" ");
+    const n = pts.length;
+    if (n === 0) return "";
+    if (n === 1) return `M${x(pts[0].h).toFixed(1)} ${y(pts[0].v).toFixed(1)}`;
+    const px = pts.map((p) => x(p.h));
+    const py = pts.map((p) => y(p.v));
+    const dx: number[] = [];
+    const slope: number[] = [];
+    for (let i = 0; i < n - 1; i++) {
+      dx.push(px[i + 1] - px[i] || 1);
+      slope.push((py[i + 1] - py[i]) / (px[i + 1] - px[i] || 1));
     }
-    /* 在两端各镜像一个虚点（切线对称），让首末两段也能平滑到达边缘。 */
-    const virtualFirst = { h: pts[0].h - (pts[1].h - pts[0].h), v: 2 * pts[0].v - pts[1].v };
-    const virtualLast = { h: pts[pts.length - 1].h - (pts[pts.length - 2].h - pts[pts.length - 1].h), v: 2 * pts[pts.length - 1].v - pts[pts.length - 2].v };
-    const seq = [virtualFirst, ...pts, virtualLast];
-    let d = "";
-    for (let i = 1; i < seq.length - 2; i++) {
-      const [p0x, p0y] = toXY(seq[i - 1]);
-      const [p1x, p1y] = toXY(seq[i]);
-      const [p2x, p2y] = toXY(seq[i + 1]);
-      const [p3x, p3y] = toXY(seq[i + 2]);
-      const cp1x = p1x + (p2x - p0x) * (TENSION / 6);
-      const cp1y = p1y + (p2y - p0y) * (TENSION / 6);
-      const cp2x = p2x - (p3x - p1x) * (TENSION / 6);
-      const cp2y = p2y - (p3y - p1y) * (TENSION / 6);
-      if (i === 1) d += `M${p1x.toFixed(1)} ${p1y.toFixed(1)} `;
-      d += `C${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${p2x.toFixed(1)} ${p2y.toFixed(1)} `;
+    /* 各点切线：内部点取两侧斜率均值；斜率变号（极值）处切线置 0 消除过冲。 */
+    const m: number[] = [slope[0]];
+    for (let i = 1; i < n - 1; i++) {
+      m.push(slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2);
+    }
+    m.push(slope[n - 2]);
+    for (let i = 0; i < n - 1; i++) {
+      if (slope[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+      const a = m[i] / slope[i];
+      const b = m[i + 1] / slope[i];
+      const s = a * a + b * b;
+      if (s > 9) {
+        const t = 3 / Math.sqrt(s);
+        m[i] = t * a * slope[i];
+        m[i + 1] = t * b * slope[i];
+      }
+    }
+    let d = `M${px[0].toFixed(1)} ${py[0].toFixed(1)} `;
+    for (let i = 0; i < n - 1; i++) {
+      const third = dx[i] / 3;
+      d += `C${(px[i] + third).toFixed(1)} ${(py[i] + m[i] * third).toFixed(1)} ${(px[i + 1] - third).toFixed(1)} ${(py[i + 1] - m[i + 1] * third).toFixed(1)} ${px[i + 1].toFixed(1)} ${py[i + 1].toFixed(1)} `;
     }
     return d.trim();
   };
-  const line = smoothLine(closed);
-  const fill = `${line} L${width} ${height} L0 ${height} Z`;
   const ticks = [1, 0.75, 0.5, 0.25, 0].map((fraction) => min + span * fraction);
 
   /* 在 nowHour 处把曲线切成两段：左边已过去（虚线），右边是预报（实线），
@@ -190,6 +200,21 @@ function Chart({
   /* past/future 两段各使用 smoothLine 生成各自曲线，在切点处自然衔接。 */
   const pastD = past.length ? smoothLine(past) : "";
   const futureD = future.length ? smoothLine(future) : "";
+  const splitX = past.length ? x(past[past.length - 1].h) : 0;
+  const pastFill = pastD ? `${pastD} L${splitX.toFixed(1)} ${height} L0 ${height} Z` : "";
+  const futureFill = futureD ? `${futureD} L${width} ${height} L${(future.length ? x(future[0].h) : 0).toFixed(1)} ${height} Z` : "";
+
+  /* 最高/最低标记：取真实小时数据（不含 0/24 合成端点）的极值点。 */
+  const extremes = (() => {
+    if (!maxMin || points.length < 2) return null;
+    let hi = points[0];
+    let lo = points[0];
+    for (const p of points) {
+      if (p.v > hi.v) hi = p;
+      if (p.v < lo.v) lo = p;
+    }
+    return hi === lo ? { hi, lo: null as typeof lo | null } : { hi, lo };
+  })();
 
   /* 读取值吸附到最近的数据点，避免显示插值出来的假数据。 */
   const scrubPoint =
@@ -215,9 +240,14 @@ function Chart({
         >
           <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-44 w-full overflow-visible">
             <defs>
-              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity="0.58" />
-                <stop offset="100%" stopColor={color} stopOpacity="0.06" />
+              {/* 未来段背景更浓、过去段更暗，贴近系统天气的观感 */}
+              <linearGradient id={`${gradientId}-future`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity="0.75" />
+                <stop offset="100%" stopColor={color} stopOpacity="0.35" />
+              </linearGradient>
+              <linearGradient id={`${gradientId}-past`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity="0.4" />
+                <stop offset="100%" stopColor={color} stopOpacity="0.15" />
               </linearGradient>
             </defs>
             {[0, 0.25, 0.5, 0.75, 1].map((fraction) => (
@@ -241,7 +271,8 @@ function Chart({
               ))
             ) : (
               <>
-                {area && <path d={fill} fill={`url(#${gradientId})`} />}
+                {area && pastFill && <path d={pastFill} fill={`url(#${gradientId}-past)`} />}
+                {area && futureFill && <path d={futureFill} fill={`url(#${gradientId}-future)`} />}
                 {pastD && (
                   <path d={pastD} fill="none" stroke={color} strokeWidth="3" strokeDasharray="7 5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
                 )}
@@ -251,6 +282,35 @@ function Chart({
               </>
             )}
           </svg>
+          {/* 最高/最低标记：圆点 + 文案，用 HTML 覆盖层渲染避免 SVG 拉伸变形 */}
+          {extremes && (
+            <>
+              <span
+                className="pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] shadow"
+                style={{ left: `${axleFrac(extremes.hi.h)}%`, top: `${(y(extremes.hi.v) / height) * 100}%`, borderColor: color, background: "var(--detail-panel)" }}
+              />
+              <span
+                className="pointer-events-none absolute z-10 text-xs font-medium text-detail-muted"
+                style={{ left: `${axleFrac(extremes.hi.h)}%`, top: `${(y(extremes.hi.v) / height) * 100}%`, transform: "translate(-50%, calc(-100% - 10px))" }}
+              >
+                {maxMin!.high}
+              </span>
+              {extremes.lo && (
+                <>
+                  <span
+                    className="pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] shadow"
+                    style={{ left: `${axleFrac(extremes.lo.h)}%`, top: `${(y(extremes.lo.v) / height) * 100}%`, borderColor: color, background: "var(--detail-panel)" }}
+                  />
+                  <span
+                    className="pointer-events-none absolute z-10 text-xs font-medium text-detail-muted"
+                    style={{ left: `${axleFrac(extremes.lo.h)}%`, top: `${(y(extremes.lo.v) / height) * 100}%`, transform: "translate(-50%, calc(-100% - 10px))" }}
+                  >
+                    {maxMin!.low}
+                  </span>
+                </>
+              )}
+            </>
+          )}
           {/* 触摸查看：竖线 + 曲线上的圆点 + 时刻/数值气泡 */}
           {scrubPoint && (
             <>
@@ -428,6 +488,7 @@ export function MetricDetail({
             format={(value) => `${toDisplayTemp(value)}${tempSuffix}`}
             nowHour={chartNowHour}
             hourLabel={chartHourLabel}
+            maxMin={{ high: T.t("chartHigh"), low: T.t("chartLow") }}
             header={<IconRow hours={dayHours} tz={tz} />}
           />
           <SegmentedControl value={tempTab} onChange={setTempTab} left={T.t("actualTemp")} right={T.t("apparentTemp")} />
