@@ -7,10 +7,10 @@ import {
   Cloud, Droplet, Wind as WindIcon, Navigation,
 } from "lucide-react";
 import {
-  getCurrent, getForecast, getAir, iconUrl, summarizeDaily,
+  getCurrent, getForecast, getAir, summarizeDaily, weatherImage, weatherImageFromIcon,
   type DailySummary,
 } from "@/lib/weather";
-import { getOpenMeteo, type OMDay, type OMHour } from "@/lib/openmeteo";
+import { getOpenMeteo, type OMDay, type OMHour, weatherImageForWmo } from "@/lib/openmeteo";
 import {
   useLocations, useActiveId, useUnits, useUnitSettings, setUnitsPref, makeId,
   convertWind, windUnitLabel, formatWind, formatPrecip, resolveTemperatureUnit,
@@ -383,7 +383,7 @@ export function WeatherApp() {
                             </span>
                             {mode === "weather" && (
                               <>
-                                <img src={iconUrl(h.icon)} alt="" className="h-9 w-9" />
+                                <img src={weatherImageForWmo(h.code, !h.isDay)} alt="" className="h-9 w-9 object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]" />
                                 <span className="text-sm font-medium">{Math.round(h.temp)}°</span>
                               </>
                             )}
@@ -436,7 +436,15 @@ export function WeatherApp() {
                       return (
                         <div key={d.dt} className="grid grid-cols-[52px_32px_1fr] items-center gap-2 py-2.5 sm:grid-cols-[56px_36px_1fr] sm:gap-3">
                           <span className="truncate text-sm text-white/90">{formatDayL(d.dt, tz, lang, i === 0)}</span>
-                          <img src={iconUrl(d.icon)} alt="" className="h-8 w-8" />
+                          <img
+                            src={
+                              typeof (d as any).code === "number"
+                                ? weatherImageForWmo((d as any).code, false)
+                                : weatherImageFromIcon(d.icon)
+                            }
+                            alt=""
+                            className="h-8 w-8 object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]"
+                          />
 
                           {mode === "weather" && (
                             <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">

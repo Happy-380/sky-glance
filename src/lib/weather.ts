@@ -86,6 +86,121 @@ export function getAir(lat: number, lon: number) {
   );
 }
 
+/* ─── Local weather icons (bundled assets, not OWM remote URLs) ─── */
+import wClear from "@/assets/images/clear.png";
+import wClearNight from "@/assets/images/clear-night.png";
+import wPartlyCloudy from "@/assets/images/partlycloudy.png";
+import wPartlyCloudyNight from "@/assets/images/partlycloudy-night.png";
+import wCloudy from "@/assets/images/cloudy.png";
+import wCloud from "@/assets/images/cloud.png";
+import wDrizzle from "@/assets/images/drizzle.png";
+import wDrizzleNight from "@/assets/images/drizzle-night.png";
+import wRain from "@/assets/images/rain.png";
+import wHeavyRain from "@/assets/images/heavyrain.png";
+import wFreezingRain from "@/assets/images/freezingrain.png";
+import wThunderstorm from "@/assets/images/thunderstorm.png";
+import wSnow from "@/assets/images/snow.png";
+import wHeavySnow from "@/assets/images/heavysnow.png";
+import wMist from "@/assets/images/mist.png";
+import wFog from "@/assets/images/fog.png";
+import wHaze from "@/assets/images/haze.png";
+import wWindy from "@/assets/images/windy.png";
+
+/* Fallback to a generic cloudy icon if we don't have a specific variant. */
+const DEFAULT_ICON = wCloud;
+
+/* OpenWeather "id" groups → our bundled asset.
+   We prefer ID-based mapping because it covers all OWM codes cleanly and
+   does not depend on the exact 3-char icon suffix string (which varies). */
+function assetForId(id: number, night = false): string {
+  // Thunderstorm 2xx
+  if (id >= 200 && id < 300) return wThunderstorm;
+  // Drizzle 3xx
+  if (id >= 300 && id < 400) return night ? wDrizzleNight : wDrizzle;
+  // Rain 5xx
+  if (id >= 500 && id < 600) {
+    if (id === 511) return wFreezingRain;
+    if (id >= 502 && id <= 504) return wHeavyRain;
+    if (id >= 520) return wHeavyRain;
+    return wRain;
+  }
+  // Snow 6xx
+  if (id >= 600 && id < 700) {
+    if (id >= 602 && id <= 622) return wHeavySnow;
+    return wSnow;
+  }
+  // Atmosphere 7xx
+  if (id >= 700 && id < 800) {
+    switch (id) {
+      case 701: return wMist;
+      case 711: return wHaze; // smoke → haze
+      case 721: return wHaze;
+      case 731: return wHaze; // sand/dust → haze
+      case 741: return wFog;
+      case 751: return wHaze;
+      case 761: return wHaze; // dust
+      case 762: return wHaze; // ash
+      case 771: return wWindy; // squalls
+      case 781: return wThunderstorm; // tornado
+      default: return wHaze;
+    }
+  }
+  // Clear 800
+  if (id === 800) return night ? wClearNight : wClear;
+  // Clouds 801-804
+  if (id === 801) return night ? wPartlyCloudyNight : wPartlyCloudy; // 11-25%
+  if (id === 802) return night ? wPartlyCloudyNight : wPartlyCloudy; // scattered 25-50%
+  if (id === 803) return wCloudy; // broken 51-84%
+  if (id === 804) return wCloud;   // overcast 85-100%
+  return DEFAULT_ICON;
+}
+
+/* Detect "night" from the OWM icon suffix: code ending in `n` means night. */
+function isNightIcon(icon: string) {
+  return icon.endsWith("n");
+}
+
+/**
+ * Pick the bundled local weather image for an OpenWeather condition.
+ * Accepts the numeric weather `id` plus the optional `icon` string so it can
+ * correctly distinguish day vs. night variants.
+ *
+ * Previously we returned a remote URL via `iconUrl()`. This now gives back
+ * the bundled asset path (Vite-processed import), which works offline,
+ * matches the custom Apple-style assets, and loads instantly.
+ */
+export function weatherImage(id?: number, icon = ""): string {
+  if (!id) return DEFAULT_ICON;
+  return assetForId(id, isNightIcon(icon));
+}
+
+/**
+ * Kept for backwards compatibility with places that only have an `icon`
+ * string handy and no `id` nearby. Maps icon codes → asset path.
+ *
+ * OWM icon codes:
+ *   01 = clear, 02 = few, 03 = scattered, 04 = broken/overcast,
+ *   09 = shower, 10 = rain, 11 = thunderstorm, 13 = snow, 50 = mist
+ * suffix d = day, n = night
+ */
+export function weatherImageFromIcon(icon: string): string {
+  if (!icon) return DEFAULT_ICON;
+  const night = isNightIcon(icon);
+  const code = icon.slice(0, 2);
+  switch (code) {
+    case "01": return night ? wClearNight : wClear;
+    case "02": return night ? wPartlyCloudyNight : wPartlyCloudy;
+    case "03": return night ? wPartlyCloudyNight : wPartlyCloudy;
+    case "04": return wCloud;
+    case "09": return wHeavyRain;
+    case "10": return night ? wDrizzleNight : wRain;
+    case "11": return wThunderstorm;
+    case "13": return wSnow;
+    case "50": return wMist;
+    default:   return DEFAULT_ICON;
+  }
+}
+
 export function iconUrl(icon: string, big = false) {
   return `https://openweathermap.org/img/wn/${icon}${big ? "@4x" : "@2x"}.png`;
 }
