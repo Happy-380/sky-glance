@@ -93,6 +93,43 @@ function chartRange(values: number[], pad = 0.1, floor?: number) {
   };
 }
 
+/**
+ * Compute 4–5 axis tick values between min and max with NO duplicate labels
+ * after the caller's formatter is applied. Especially important for small-span
+ * metrics (pressure, wind Beaufort, humidity when range is narrow) where the
+ * previous `min + span*[0, 0.25, 0.5, 0.75, 1]` linear split produced
+ * identical integers on two or more rows (e.g. "1004 / 1004 / 1005 / 1006").
+ *
+ * Strategy:
+ *   1. Expand min/max so the range starts and ends on the nearest "nice"
+ *      integer boundary of a sensible step size ∈ {1, 2, 5, 10, 20, 50, ...}.
+ *   2. Walk from max down to min using step; cap length to 5 so the axis
+ *      doesn't overflow. Falls back to ≤4 rows if the span is tiny.
+ */
+function niceTicks(min: number, max: number): number[] {
+  const span = Math.max(max - min, 1e-9);
+  // Raw step if we insisted on exactly 5 splits; then round up to nice 1-2-5
+  const rawStep = span / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
+  const norm = rawStep / mag; // ∈ [1, 10)
+  const niceNorm =
+    norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+  const step = niceNorm * mag;
+  const lo = Math.floor(min / step) * step;
+  const hi = Math.ceil(max / step) * step;
+  const out: number[] = [];
+  for (let v = hi; v >= lo - step / 2; v -= step) out.push(v);
+  // Never exceed 5 rows; keep top = aligned max, bottom = aligned min.
+  if (out.length > 5) {
+    const stride = Math.ceil(out.length / 5);
+    const picked: number[] = [];
+    for (let i = 0; i < out.length - 1; i += stride) picked.push(out[i]);
+    if (picked[picked.length - 1] !== out[out.length - 1]) picked.push(out[out.length - 1]);
+    return picked.slice(0, 5);
+  }
+  return out.slice(0, 5);
+}
+
 function Chart({
   points,
   color,
@@ -131,14 +168,26 @@ function Chart({
   // 之前 viewBox 164 vs render 176 导致 y 方向拉伸 7%，覆盖层 top% 就对不上。
   const width = 320;
   const height = 176;
-  const span = max - min || 1;
+  /* ─── Fix duplicated axis labels (如 1004 1004)：
+   * 1) 用 niceTicks 求 "规整" 步长 + 整刻度；
+   * 2) 把 min/max 扩展到刻度边界（y 比例尺据此重算）；
+   * 3) 网格线直接画在每个 tick 对应的 y 高度，不再是 0.25/0.5 等分数，
+   *    保证"网格线 → 右侧数值标签"一一对应，不会再出现相邻两行格式化后相同。 */
+  const rawTicks = niceTicks(min, max);
+  const tickMin = Math.min(...rawTicks);
+  const tickMax = Math.max(...rawTicks);
+  // 如果只有 3~4 行（span < step*4），也接受，不用强行拉满 5 行
+  const ticks = rawTicks;
+  const effectiveMin = tickMin;
+  const effectiveMax = tickMax;
+  const span = effectiveMax - effectiveMin || 1;
 
   /* 触摸查看：仅组件内部持有 state，不回调父组件 setState → Fix C: 拖动不再级联重渲染 */
   const [scrubH, setScrubH] = useState<number | null>(null);
   const isPointerDown = useRef(false);
 
   const x = (hour: number) => (axleFrac(hour) / 100) * width;
-  const y = (value: number) => height - ((value - min) / span) * height;
+  const y = (value: number) => height - ((value - effectiveMin) / span) * height;
   const gid = useMemo(() => `g${Math.random().toString(36).slice(2, 8)}`, []);
 
   // ─── 所有曲线路径 / 填充 / 渐变 只取决于数据 props，不依赖 scrubH 状态 ───
@@ -188,7 +237,6 @@ function Chart({
       }
       return d.trim();
     };
-    const ticks = [1, 0.75, 0.5, 0.25, 0].map((fraction) => min + span * fraction);
     const { past, future } = (() => {
       if (nowHour === undefined || bars) return { past: [] as { h: number; v: number }[], future: closed };
       const before: { h: number; v: number }[] = [];
@@ -207,10 +255,8 @@ function Chart({
     const pastFill = pastD ? `${pastD} L${splitX.toFixed(1)} ${height} L0 ${height} Z` : "";
     const futureFill = futureD ? `${futureD} L${width} ${height} L${(future.length ? x(future[0].h) : 0).toFixed(1)} ${height} Z` : "";
     const pastColor = `color-mix(in oklab, ${color} 72%, black)`;
-    return { pastD, futureD, pastFill, futureFill, pastColor, ticks };
-  }, [bars, points, color, max, min, nowHour]);
-
-  const ticks = staticBits.ticks;
+    return { pastD, futureD, pastFill, futureFill, pastColor };
+  }, [bars, points, color, effectiveMax, effectiveMin, nowHour]);
 
   /* 极值：基于原始 points （不含 0/24 合成端点） */
   const extremes = useMemo(() => {
@@ -231,7 +277,13 @@ function Chart({
 
   const scrubFromEvent = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const fraction = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+    /* h-44 容器右侧有 pr-8（给温度轴留空），
+       计算分数时必须用「内容区宽度」(不含 padding-right)，
+       这样手触摸的 x% 才和 SVG 内部的 0–24 小时水平坐标严格一一对应。 */
+    const style = window.getComputedStyle(e.currentTarget);
+    const pr = parseFloat(style.paddingRight || "0");
+    const contentWidth = Math.max(rect.width - pr, 1);
+    const fraction = Math.min(Math.max((e.clientX - rect.left) / contentWidth, 0), 1);
     setScrubH(fraction * 24);
   };
   const clearScrub = () => {
@@ -245,18 +297,24 @@ function Chart({
     : undefined;
 
   return (
-    <div className="detail-chart-grid">
-      <div className="detail-chart-col min-w-0">
-        {header}
-        <div
-          className="relative h-44 cursor-crosshair touch-none select-none"
-          onPointerDown={(e) => { isPointerDown.current = true; e.currentTarget.setPointerCapture(e.pointerId); scrubFromEvent(e); }}
-          onPointerMove={(e) => { if (isPointerDown.current) scrubFromEvent(e); }}
-          onPointerCancel={clearScrub}
-          onPointerUp={clearScrub}
-          onPointerLeave={(e) => { if (e.pointerType === "mouse" && !isPointerDown.current) clearScrub(); }}
-        >
-          <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-full w-full overflow-visible">
+    <div className="min-w-0">
+      {header}
+      {/* 关键修复：把温度轴 (蓝框) 从 CSS Grid 独立列改成 h-44 曲线容器的绝对定位。
+           这样：
+           1) 轴的高度永远等于 176px (h-44)，与红框高度(wind风向箭头的h-8)完全解耦。
+           2) 无论详细页面是「风」(上面有红框方向箭头) 还是 气温/气压/降水(无额外行)，
+              蓝框顶部都与曲线顶部精确对齐。
+           3) 容器加 pr-8/sm:pr-9 作为给轴列预留的右边距，曲线 SVG 通过 w-full 占内容区，
+              不会压到温度数字；同时 scrub 坐标计算已减去 padding-right 保持一致。 */}
+      <div
+        className="relative h-44 pr-8 cursor-crosshair touch-none select-none sm:pr-9"
+        onPointerDown={(e) => { isPointerDown.current = true; e.currentTarget.setPointerCapture(e.pointerId); scrubFromEvent(e); }}
+        onPointerMove={(e) => { if (isPointerDown.current) scrubFromEvent(e); }}
+        onPointerCancel={clearScrub}
+        onPointerUp={clearScrub}
+        onPointerLeave={(e) => { if (e.pointerType === "mouse" && !isPointerDown.current) clearScrub(); }}
+      >
+        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="detail-chart-enter block h-full w-full overflow-visible">
             <defs>
               <linearGradient id={`${gid}-f`} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor={color} stopOpacity="0.75" />
@@ -267,9 +325,10 @@ function Chart({
                 <stop offset="100%" stopColor={color} stopOpacity="0.15" />
               </linearGradient>
             </defs>
-            {/* 水平网格线 */}
-            {[0, 0.25, 0.5, 0.75, 1].map((fraction) => (
-              <line key={fraction} x1="0" y1={height * fraction} x2={width} y2={height * fraction} className="detail-chart-line" />
+            {/* 水平网格线：与右侧轴 ticks 高度严格对应（每个轴数值都有一条同行横线），
+                 这样就不会再出现"网格线 / 轴数值"上下错位。 */}
+            {ticks.map((tick) => (
+              <line key={tick} x1="0" y1={y(tick)} x2={width} y2={y(tick)} className="detail-chart-line" />
             ))}
             {/* 时间分段虚线（6/12/18） */}
             {[6, 12, 18].map((hour) => (
@@ -413,9 +472,17 @@ function Chart({
               </span>
             </>
           )}
+
+          {/* 蓝框：温度/数值轴 — 绝对定位贴在容器右边，高度 = 100% (也就是 h-44 = 曲线区高度)。
+               左边 border 就是 SVG 右边界。不再依赖 CSS Grid，所以 wind 页的红框
+               (h-8 风向箭头行) 再高也不会把轴顶歪。 */}
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex w-7 flex-col justify-between border-l border-detail-line pl-1 text-right text-[11px] leading-none tabular-nums text-detail-muted sm:w-8 sm:text-xs">
+            {ticks.map((tick) => <span key={tick}>{format(tick)}</span>)}
+          </div>
         </div>
-        {/* 底部小时标签 (0, 6, 12, 18, 24) */}
-        <div className="relative h-4 pt-1 text-xs tabular-nums text-detail-muted">
+        {/* 底部小时标签 (0, 6, 12, 18, 24) — 加 pr-8/sm:pr-9 与图表内容右边距对齐，
+             这样 24 时标签正好在轴列上方(对应轴列顶底位置)。 */}
+        <div className="relative h-4 pt-1 pr-8 text-xs tabular-nums text-detail-muted sm:pr-9">
           {[0, 6, 12, 18, 24].map((hour) => (
             <span key={hour} className="absolute -translate-x-1/2" style={{ left: `${axleFrac(hour)}%` }}>
               {hour}
@@ -423,12 +490,6 @@ function Chart({
           ))}
         </div>
       </div>
-      {/* 温度轴：与图表左列零距离对齐（CSS Grid column-gap = 0），
-           轴竖线 = SVG 右边界，不再出现空行/错位。 */}
-      <div className="detail-chart-axis flex flex-col justify-between border-l border-detail-line pl-1 text-right text-[11px] leading-none tabular-nums text-detail-muted sm:text-xs">
-        {ticks.map((tick) => <span key={tick}>{format(tick)}</span>)}
-      </div>
-    </div>
   );
 }
 
@@ -724,18 +785,43 @@ export function MetricDetail({
 
     if (key === "pressure") {
       const values = dayHours.map((hour) => hour.pressure || cur.main.pressure);
-      const range = chartRange(values, 0.3);
+      /* Fix: chartRange 只覆盖了 Open-Meteo FORECAST 小时气压，
+         但 TopValue 展示的是 OpenWeather 当前实时气压 cur.main.pressure。
+         若实时气压超出预报区间（很常见），会导致图表右侧曲线被截断，
+         看起来像是 1009 vs 1006 不一致。把 curPressure 塞进 range 计算，
+         并把 dayHours 中对应「当前小时」那点替换成实时值。 */
+      const curP = cur.main.pressure;
+      const curHourIdx = (() => {
+        const nowH = tz !== undefined ? localParts(cur.dt, tz).hour : 12;
+        let best = 0, bestDiff = Infinity;
+        for (let i = 0; i < dayHours.length; i++) {
+          const diff = Math.abs(localParts(dayHours[i].dt, tz).hour - nowH);
+          if (diff < bestDiff) { bestDiff = diff; best = i; }
+        }
+        return best;
+      })();
+      const valuesWithCur = values.slice();
+      if (curHourIdx >= 0 && curHourIdx < valuesWithCur.length) valuesWithCur[curHourIdx] = curP;
+      const allForRange = [...valuesWithCur, curP];
+      const range = chartRange(allForRange, 0.3);
       const trend = values.at(-1)! - values[0];
       const trendLabel = trend > 1 ? T.t("trendRising") : trend < -1 ? T.t("trendFalling") : T.t("trendSteady");
       const average = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
       const curPressure = convertPressure(cur.main.pressure, unitSettings.pressure);
       const avgPressure = convertPressure(average, unitSettings.pressure);
+      const pts = dayHours.map((hour, i) => ({
+        h: localParts(hour.dt, tz).hour,
+        v: convertPressure(
+          i === curHourIdx ? curP : (hour.pressure || cur.main.pressure),
+          unitSettings.pressure,
+        ).value,
+      }));
       return (
         <div className="space-y-5">
           <TopValue big={Math.round(curPressure.value).toLocaleString()} unit={curPressure.label} sub={trendLabel} trend={trend} rightSlot={<MetricSelector metrics={metrics} active={key} onSelect={setKey} icon={heading.icon} />} />
-          <Chart points={points((hour) => convertPressure(hour.pressure || cur.main.pressure, unitSettings.pressure).value)} color="var(--weather-pressure)" min={convertPressure(range.min, unitSettings.pressure).value} max={convertPressure(range.max, unitSettings.pressure).value} format={(value) => `${Math.round(value)}`} nowHour={chartNowHour} dayHours={dayHours} formatHour={chartHourLabel} />
+          <Chart points={pts} color="var(--weather-pressure)" min={convertPressure(range.min, unitSettings.pressure).value} max={convertPressure(range.max, unitSettings.pressure).value} format={(value) => `${Math.round(value)}`} nowHour={chartNowHour} dayHours={dayHours} formatHour={chartHourLabel} />
           <InfoSection title={T.t("dailySummary")} text={copy(`当前气压为 ${Math.round(curPressure.value)} ${curPressure.label}，${trendLabel}。今天平均气压约为 ${Math.round(avgPressure.value)} ${avgPressure.label}。`, `Pressure is ${Math.round(curPressure.value)} ${curPressure.label} and ${trendLabel.toLowerCase()}. Today's average is about ${Math.round(avgPressure.value)} ${avgPressure.label}.`)} />
-          <InfoSection title={copy("关于气压", "About Pressure")} text={copy("气压的显著变化可用于预测天气变化。气压降低可能表示雨雪即将来临，气压升高则可能表示天气将转好。", "Significant pressure changes can help predict weather. Falling pressure may signal rain or snow, while rising pressure can indicate improving conditions.")} />
+          <InfoSection title={copy("关于气压", "About Pressure")} text={copy("气压的显著变化可用于预测天气变化。气压降低可能表示雨雪即将来临，气压升高则可能表示天气转好。", "Significant pressure changes can help predict weather. Falling pressure may signal rain or snow, while rising pressure can indicate improving conditions.")} />
         </div>
       );
     }
