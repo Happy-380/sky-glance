@@ -495,25 +495,50 @@ function Chart({
                   };
                   return (
                     <>
-                      {/* 填充 - 未来 (水平方向按温度值取色，配合整体的 opacity 渐变) */}
-                      <linearGradient id={`${gid}-vfill-future`} x1="0" y1="0" x2="1" y2="0">
+                      {/* 用 clipPath 切出曲线下方形状；再用 mask 做垂直透明度蒙板
+                         （白 = 完全不透明，黑 = 完全透明），
+                         两层组合实现：水平按时间→温度取色 + 曲线轮廓 + 上深下浅。 */}
+                      <clipPath id={`${gid}-clip-past`}>
+                        <path d={staticBits.pastFill} />
+                      </clipPath>
+                      <clipPath id={`${gid}-clip-future`}>
+                        <path d={staticBits.futureFill} />
+                      </clipPath>
+
+                      {/* 未来填充 - 垂直透明度蒙板 (顶部=白/不透明, 底部=黑/透明) */}
+                      <mask id={`${gid}-mask-future`}>
+                        <rect x="0" y="0" width={width} height={height} fill={`url(#${gid}-mask-future-grad)`} />
+                      </mask>
+                      <linearGradient id={`${gid}-mask-future-grad`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#fff" stopOpacity="0.72" />
+                        <stop offset="100%" stopColor="#000" stopOpacity="1" />
+                      </linearGradient>
+
+                      {/* 过去填充 - 垂直透明度蒙板 (整体透明度再打 6 折) */}
+                      <mask id={`${gid}-mask-past`}>
+                        <rect x="0" y="0" width={width} height={height} fill={`url(#${gid}-mask-past-grad)`} />
+                      </mask>
+                      <linearGradient id={`${gid}-mask-past-grad`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#fff" stopOpacity="0.43" />
+                        <stop offset="100%" stopColor="#000" stopOpacity="1" />
+                      </linearGradient>
+
+                      {/* 填充颜色 - 水平按温度取色 */}
+                      <linearGradient id={`${gid}-vfill-future-x`} x1="0" y1="0" x2="1" y2="0">
                         {stopList.map((s, i) => (
                           <stop
-                            key={`ff-${i}`}
+                            key={`ffx-${i}`}
                             offset={`${(s.offset * 100).toFixed(2)}%`}
                             stopColor={s.color}
-                            stopOpacity={fillOpacity(i, stopList.length)}
                           />
                         ))}
                       </linearGradient>
-                      {/* 填充 - 过去：颜色加深、透明度再打 6 折 */}
-                      <linearGradient id={`${gid}-vfill-past`} x1="0" y1="0" x2="1" y2="0">
+                      <linearGradient id={`${gid}-vfill-past-x`} x1="0" y1="0" x2="1" y2="0">
                         {stopList.map((s, i) => (
                           <stop
-                            key={`pf-${i}`}
+                            key={`pfx-${i}`}
                             offset={`${(s.offset * 100).toFixed(2)}%`}
                             stopColor={darken(s.color)}
-                            stopOpacity={fillOpacity(i, stopList.length) * 0.6}
                           />
                         ))}
                       </linearGradient>
@@ -565,28 +590,53 @@ function Chart({
               ))
             ) : (
               <>
-                {/* 曲线下方填充：若有取色器则用按值的垂直渐变 (透明度降低到 30~70%，
-                   与原设计保持 "顶部深 / 底部浅" 的层次感) */}
-                {area && staticBits.pastFill && (
-                  <path
-                    d={staticBits.pastFill}
-                    fill={
-                      valueToStrokeColor
-                        ? `url(#${gid}-vfill-past)`
-                        : `url(#${gid}-p)`
-                    }
-                  />
-                )}
-                {area && staticBits.futureFill && (
-                  <path
-                    d={staticBits.futureFill}
-                    fill={
-                      valueToStrokeColor
-                        ? `url(#${gid}-vfill-future)`
-                        : `url(#${gid}-f)`
-                    }
-                  />
-                )}
+                {/* 填充：
+                    - 有 valueToStrokeColor 时：
+                        1) clipPath 切出"曲线以下"的不规则多边形区域，
+                        2) 里面放水平按温度取色的大 rect，
+                        3) rect 再套 mask (顶部不透明→底部透明)，实现"上深下浅"。
+                        最终效果：颜色严格按上方曲线温度起伏，且填充上方颜色更深、下方更浅。
+                    - 否则仍使用单一颜色垂直渐变的闭合 path。 */}
+                {area &&
+                  (valueToStrokeColor ? (
+                    <>
+                      {/* 过去区域 */}
+                      {staticBits.pastFill && (
+                        <g clipPath={`url(#${gid}-clip-past)`}>
+                          <rect
+                            x="0"
+                            y="0"
+                            width={width}
+                            height={height}
+                            fill={`url(#${gid}-vfill-past-x)`}
+                            mask={`url(#${gid}-mask-past)`}
+                          />
+                        </g>
+                      )}
+                      {/* 未来区域 */}
+                      {staticBits.futureFill && (
+                        <g clipPath={`url(#${gid}-clip-future)`}>
+                          <rect
+                            x="0"
+                            y="0"
+                            width={width}
+                            height={height}
+                            fill={`url(#${gid}-vfill-future-x)`}
+                            mask={`url(#${gid}-mask-future)`}
+                          />
+                        </g>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {staticBits.pastFill && (
+                        <path d={staticBits.pastFill} fill={`url(#${gid}-p)`} />
+                      )}
+                      {staticBits.futureFill && (
+                        <path d={staticBits.futureFill} fill={`url(#${gid}-f)`} />
+                      )}
+                    </>
+                  ))}
                 {/* 描边：
                     - 有 valueToStrokeColor 时逐段独立渲染 (每段按段中点温度取色)，
                       实现从 冷蓝→暖黄→橙红 的水平渐变效果；
