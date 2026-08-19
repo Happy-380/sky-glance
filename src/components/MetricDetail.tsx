@@ -309,7 +309,14 @@ function Chart({
       }
       return out;
     };
-    const smoothLine = (segments: { d: string }[]) => segments.map((s) => s.d).join(" ") || "";
+    const smoothLine = (segments: { d: string }[]) => {
+      if (!segments.length) return "";
+      // 第一条段保留完整 M...C...，后续段只保留 C... (去掉 M 起始坐标)
+      // 这样拼接后整条路径是连续的，不会因为多次 M 而断开
+      return segments
+        .map((s, i) => (i === 0 ? s.d : s.d.replace(/^M[\d.\- ]+ /, "")))
+        .join(" ");
+    };
     const { past, future } = (() => {
       if (nowHour === undefined || bars) return { past: [] as { h: number; v: number }[], future: closed };
       const before: { h: number; v: number }[] = [];
