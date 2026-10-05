@@ -33,8 +33,8 @@ function Card({
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
-      className={`min-h-0 min-w-0 self-start overflow-hidden rounded-3xl border border-white/15 bg-white/10 backdrop-blur-xl ${
-        onClick ? "cursor-pointer transition hover:bg-white/15 active:scale-[0.98]" : ""
+      className={`sky-card min-h-0 min-w-0 self-start overflow-hidden ${
+        onClick ? "cursor-pointer transition duration-200 ease-out hover:bg-white/15 active:scale-[0.98]" : ""
       } ${span === 2 ? "col-span-2 aspect-[2/1]" : "aspect-square"}`}
     >
       <div className="flex h-full w-full min-h-0 min-w-0 flex-col p-[6cqh]">
@@ -142,7 +142,7 @@ export function WeatherCards({
   const aqiPct = air ? ((air.aqi - 1) / 4) * 100 : 0;
 
   return (
-    <section className="app-fade-up mx-auto grid w-full max-w-[836px] grid-cols-2 items-start gap-3 md:grid-cols-4">
+    <section className="app-fade-up grid w-full grid-cols-2 items-start gap-3 lg:grid-cols-3">
       {/* 平均 */}
       <Card onClick={() => onOpen?.("conditions")} title={T.t("average")} icon={<Icon><TrendingUp /></Icon>}>
         <Big>{diff >= 0 ? "+" : ""}{toDisplayTemp(diff)}{tempSuffix}</Big>

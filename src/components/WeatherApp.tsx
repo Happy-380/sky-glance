@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "@tanstack/react-router";
 import {
-  Loader2, MapPin, List, MoreHorizontal, Check, Pencil, Sparkles,
+  Loader2, List, MoreHorizontal, Check, Pencil, CalendarDays,
   Cloud, Droplet, Wind as WindIcon, Navigation,
 } from "lucide-react";
 import {
@@ -12,7 +12,7 @@ import {
 } from "@/lib/weather";
 import { getOpenMeteo, type OMDay, type OMHour, weatherImageForWmo } from "@/lib/openmeteo";
 import {
-  useLocations, useActiveId, useUnits, useUnitSettings, setUnitsPref, makeId,
+  useLocations, useActiveId, useUnits, useUnitSettings, setUnitsPref, setActiveId, makeId,
   convertWind, windUnitLabel, formatWind, formatPrecip, resolveTemperatureUnit,
   type SavedLocation,
 } from "@/lib/locations-store";
@@ -21,8 +21,9 @@ import { weatherGradient } from "@/lib/gradient";
 import { WeatherCards } from "@/components/WeatherCards";
 import { CityListPanel } from "@/components/CityList";
 import { UnitSettingsSheet } from "@/components/UnitSettings";
-import { buildHighlights } from "@/lib/highlights";
 import { MetricDetail, temperatureStrokeColor, type MetricKey } from "@/components/MetricDetail";
+import sunriseIcon from "@/assets/images/sunrise.png";
+import sunsetIcon from "@/assets/images/sunset.png";
 
 const DEFAULT: SavedLocation = {
   id: makeId(40.7128, -74.006),
@@ -197,22 +198,52 @@ export function WeatherApp() {
   };
   const tempSuffix = tempUnit === "f" ? "°F" : "°";
 
-  const highlights = useMemo(
-    () =>
-      forecast.data
-        ? buildHighlights(forecast.data.list, tz, current.data?.dt ?? Date.now() / 1000, lang, units)
-        : [],
-    [forecast.data, tz, current.data?.dt, lang, units],
-  );
+  /* The first saved location always plays the role of "My Location" — it is
+     the one the list pins to the top, exactly like the iOS list. */
+  const isMyLocation = locations.length > 0 && locations[0].id === active.id;
 
+  /* `今天` owns a dot on its temperature bar showing where the current reading
+     sits inside the day's range. */
+  const nowPct = (() => {
+    const span = rangeMax - rangeMin || 1;
+    const t = current.data?.main.temp ?? todayHi;
+    return Math.min(Math.max(((t - rangeMin) / span) * 100, 0), 100);
+  })();
   const modes: { key: Mode; icon: React.ReactNode; label: string }[] = [
     { key: "weather", icon: <Cloud className="h-4 w-4" />, label: T.t("modeWeather") },
     { key: "precip", icon: <Droplet className="h-4 w-4" />, label: T.t("modePrecip") },
     { key: "wind", icon: <WindIcon className="h-4 w-4" />, label: T.t("modeWind") },
   ];
 
+  /* Title + unit line under it, mirroring the heading of the hourly card. */
+  const modeHeading = {
+    weather: {
+      title: T.t("conditions"),
+      sub: `${T.t("tempSub")} (${tempUnit === "f" ? "°F" : "°C"})`,
+    },
+    precip: { title: T.t("modePrecip"), sub: T.t("precipSub") },
+    wind: {
+      title: T.t("modeWind"),
+      sub: `${T.t("windSubSpeed")}（${windUnit}）· ${T.t("gusts")}`,
+    },
+  }[mode];
+
   return (
-    <div className="page-enter min-h-screen w-full overflow-x-hidden text-white" style={{ background: bg }}>
+    <div
+      className="page-enter relative min-h-screen w-full overflow-x-hidden text-white"
+      style={{ background: bg }}
+    >
+      {/* Sky depth. A flat two-stop gradient reads as a rectangle of colour.
+         A soft scrim at the zenith lifts the hero's contrast on every weather,
+         and the base vignette keeps the footer from floating. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(to bottom, rgba(4,8,16,0.22), rgba(4,8,16,0) 340px), linear-gradient(to top, rgba(4,8,16,0.34), rgba(4,8,16,0) 460px)",
+        }}
+      />
       {/* Wide-screen city list drawer. Portaled to body so the .page-enter
          transform on this page can't become its containing block. */}
       {drawerOpen &&
@@ -227,31 +258,24 @@ export function WeatherApp() {
               <CityListPanel embedded onClose={() => setDrawerOpen(false)} />
             </aside>
           </div>,
-          document.body
+          document.body,
         )}
-      <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-2xl flex-col px-4 pb-10 pt-3 md:px-6 lg:max-w-6xl">
-
-
-        {/* Top bar */}
-        <header className="flex items-center justify-between">
-          <Link
-            to="/cities"
-            className="rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl lg:hidden"
-            aria-label={T.t("cityList")}
-          >
-            <List className="h-4 w-4" />
-          </Link>
+      <div className="relative mx-auto flex min-h-screen w-full min-w-0 max-w-2xl flex-col px-4 pb-6 pt-3 md:px-6 lg:max-w-6xl lg:pb-8">
+        {/* Top bar. On phones the city list lives in the floating bar at the
+           bottom (where the thumb is); on wide screens it opens the side
+           panel, so only then does a top-left control appear. */}
+        <header className="flex items-center gap-2">
           <button
             onClick={() => setDrawerOpen(true)}
-            className="hidden rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl lg:block"
+            className="sky-chip hidden h-11 w-11 items-center justify-center lg:inline-flex"
             aria-label={T.t("cityList")}
           >
             <List className="h-4 w-4" />
           </button>
-          <div className="relative" ref={menuRef}>
+          <div className="relative ml-auto" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
-              className="rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl"
+              className="sky-chip inline-flex h-11 w-11 items-center justify-center"
               aria-label="Menu"
             >
               <MoreHorizontal className="h-4 w-4" />
@@ -308,247 +332,328 @@ export function WeatherApp() {
           )}
           {current.data && (
             <>
-              {/* Hero */}
-              <section className="pb-4 pt-2 text-center">
-                <div className="flex items-center justify-center gap-1 text-sm text-white/85">
-                  {locations.length === 0 && <MapPin className="h-3.5 w-3.5" />}
-                  <span>{locations.length === 0 ? T.t("myLocation") : ""}</span>
-                </div>
-                <h1 className="mt-1 text-3xl font-medium tracking-tight md:text-4xl">{active.name}</h1>
-                <div className="mt-1 flex items-start justify-center">
-                  <span className="font-thin leading-none tracking-tighter" style={{ fontSize: "clamp(72px, 22vw, 120px)" }}>
+              {/* Hero — same vertical rhythm as the iOS app: place label, city,
+                 reading, high/low, then feels-like. Nothing else competes. */}
+              <section className="sky-hero-shadow px-2 pb-2 pt-1 text-center">
+                {isMyLocation && <p className="text-sm text-white/85">{T.t("myLocation")}</p>}
+                <h1 className="text-[28px] font-medium leading-tight tracking-tight md:text-[32px]">
+                  {active.name}
+                </h1>
+                <div className="mt-0.5 flex items-start justify-center">
+                  <span
+                    className="font-thin leading-[0.94] tracking-[-0.03em]"
+                    style={{ fontSize: "clamp(68px, 19vw, 104px)" }}
+                  >
                     {toDisplayTemp(current.data.main.temp)}
                   </span>
-                  <span className="mt-3 font-thin text-white/85" style={{ fontSize: "clamp(28px, 8vw, 42px)" }}>{tempSuffix}</span>
+                  <span
+                    className="font-thin leading-none text-white/90"
+                    style={{ fontSize: "clamp(26px, 7vw, 38px)" }}
+                  >
+                    {tempSuffix}
+                  </span>
                 </div>
-                <p className="mt-1 text-base capitalize text-white/90">
-                  {current.data.weather[0].description}
+                <div className="mt-1.5 flex items-center justify-center gap-3 text-white/95">
+                  <StackedStat
+                    label={T.t("high")}
+                    value={`${toDisplayTemp(todayHi)}${tempSuffix}`}
+                  />
+                  <StackedStat
+                    label={T.t("low")}
+                    value={`${toDisplayTemp(todayLo)}${tempSuffix}`}
+                  />
+                </div>
+                <p className="mt-1.5 text-[15px] text-white/85">
+                  {T.t("feelsLikeInline")}
+                  {toDisplayTemp(current.data.main.feels_like)}
+                  {tempSuffix}
                 </p>
-                <div className="mt-1 flex items-center justify-center gap-4 text-sm text-white/90">
-                  <span><span className="text-white/70">{T.t("high")}</span> {toDisplayTemp(todayHi)}{tempSuffix}</span>
-                  <span><span className="text-white/70">{T.t("low")}</span> {toDisplayTemp(todayLo)}{tempSuffix}</span>
+              </section>
+
+              {/* Hourly — heading + readout switcher on top, the day summary
+                 under them, then the strip. Same stack as the iOS card. */}
+              <section className="sky-card min-w-0 overflow-hidden">
+                <div className="flex items-start justify-between gap-3 px-4 pt-3.5">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-[17px] font-medium leading-tight">
+                      {modeHeading.title}
+                    </h2>
+                    <p className="mt-0.5 truncate text-[13px] leading-tight text-white/70">
+                      {modeHeading.sub}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center rounded-full bg-white/12 p-0.5">
+                    {modes.map((m, i) => (
+                      <Fragment key={m.key}>
+                        {i === 2 && (
+                          <span className="mx-0.5 h-5 w-px shrink-0 bg-white/20" aria-hidden />
+                        )}
+                        <button
+                          onClick={() => setMode(m.key)}
+                          aria-label={m.label}
+                          aria-pressed={mode === m.key}
+                          className={`flex h-8 w-9 items-center justify-center rounded-full transition duration-200 ease-out ${
+                            mode === m.key
+                              ? "bg-white/80 text-slate-900"
+                              : "text-white/80 hover:text-white"
+                          }`}
+                        >
+                          {m.icon}
+                        </button>
+                      </Fragment>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="mt-3 border-y border-white/12 px-4 py-2 text-[13px] leading-snug text-white/90">
+                  {sentence}
+                </p>
+
+                {/* No horizontal padding: the first column's centred label then
+                   lands exactly on the card's text edge, flush with the
+                   heading above it. */}
+                <div className="scrollbar-none flex overflow-x-auto py-3">
+                  {hourly.map((h, i) => {
+                    const next = hourly[i + 1]?.dt ?? Infinity;
+                    const sun = current.data;
+                    const isSunrise =
+                      mode === "weather" &&
+                      !!sun &&
+                      h.dt <= sun.sys.sunrise &&
+                      next > sun.sys.sunrise;
+                    const isSunset =
+                      mode === "weather" &&
+                      !!sun &&
+                      h.dt <= sun.sys.sunset &&
+                      next > sun.sys.sunset;
+                    const marker = isSunrise ? "sunrise" : isSunset ? "sunset" : null;
+                    return (
+                      <div
+                        key={h.dt}
+                        className="flex w-[58px] shrink-0 flex-col items-center gap-1.5 lg:w-auto lg:min-w-0 lg:flex-1"
+                      >
+                        <span className="text-[13px] font-medium text-white/85">
+                          {marker && sun
+                            ? formatTimeL(isSunrise ? sun.sys.sunrise : sun.sys.sunset, tz)
+                            : i === 0
+                              ? T.t("now")
+                              : formatHourL(h.dt, tz, lang)}
+                        </span>
+
+                        {mode === "weather" && (
+                          <>
+                            <img
+                              src={
+                                marker
+                                  ? isSunrise
+                                    ? sunriseIcon
+                                    : sunsetIcon
+                                  : weatherImageForWmo(h.code, !h.isDay)
+                              }
+                              alt=""
+                              className="h-8 w-8 object-contain"
+                            />
+                            <span className="text-[15px] font-medium">
+                              {marker
+                                ? T.t(isSunrise ? "sunrise" : "sunset")
+                                : `${Math.round(h.temp)}°`}
+                            </span>
+                          </>
+                        )}
+
+                        {mode === "precip" && (
+                          <>
+                            <div className="flex h-8 w-2.5 items-end overflow-hidden rounded-full bg-white/20">
+                              <div
+                                className="w-full rounded-full bg-sky-300"
+                                style={{ height: `${Math.max(Math.round(h.pop * 100), 4)}%` }}
+                              />
+                            </div>
+                            <span className="text-[15px] font-medium text-sky-100">
+                              {Math.round(h.pop * 100)}%
+                            </span>
+                          </>
+                        )}
+
+                        {mode === "wind" && (
+                          <>
+                            <span className="flex h-8 flex-col items-center justify-center leading-none">
+                              <span className="text-[17px] font-medium">
+                                {convertWind(h.wind, unitSettings.wind).value.toFixed(0)}
+                              </span>
+                              <span className="mt-1 text-[11px] text-white/70">{windUnit}</span>
+                            </span>
+                            <Navigation
+                              className="h-3.5 w-3.5 text-white/70"
+                              style={{ transform: `rotate(${h.windDeg + 180}deg)` }}
+                            />
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
 
-              <div className="grid min-w-0 gap-4 lg:grid-cols-2 lg:items-start">
-                <div className="flex min-w-0 flex-col gap-4">
-                  {/* Highlights */}
-                  {highlights.length > 0 && (
-                    <section className="rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-                      <h3 className="mb-2 flex items-center gap-1.5 border-b border-white/15 pb-2 text-xs font-semibold uppercase tracking-widest text-white/60">
-                        <Sparkles className="h-3.5 w-3.5" />
-                        {T.t("highlights")}
-                      </h3>
-                      <ul className="space-y-2">
-                        {highlights.map((h, i) => (
-                          <li key={i} className="flex min-w-0 items-start gap-2 text-sm text-white/90">
-                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-white/60" />
-                            <span className="min-w-0">{h.text}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  )}
-
-                  {/* Hourly + mode switch */}
-                  <section className="min-w-0 rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-                    <div className="mb-3 flex items-start justify-between gap-3 border-b border-white/15 pb-3">
-                      <p className="min-w-0 flex-1 text-sm text-white/90">{sentence}</p>
-                      <div className="flex shrink-0 rounded-full border border-white/15 bg-white/10 p-0.5">
-                        {modes.map((m) => (
-                          <button
-                            key={m.key}
-                            onClick={() => setMode(m.key)}
-                            aria-label={m.label}
-                            aria-pressed={mode === m.key}
-                            className={`rounded-full p-1.5 transition ${
-                              mode === m.key ? "bg-white/85 text-slate-900" : "text-white/80"
-                            }`}
-                          >
-                            {m.icon}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex gap-4 overflow-x-auto pb-1">
-                      {hourly.map((h, i) => {
-                        const isSunset =
-                          current.data &&
-                          h.dt <= current.data.sys.sunset &&
-                          (hourly[i + 1]?.dt ?? Infinity) > current.data.sys.sunset;
+              {/* Forecast list + metric tiles. Stacked on phones; on wide
+                 screens they sit side by side so neither column ends in a
+                 stretch of empty sky. */}
+              <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-start">
+                {/* Daily */}
+                <section className="sky-card min-w-0">
+                  <h2 className="flex items-center gap-1.5 px-4 pb-1 pt-3.5 text-[17px] font-medium">
+                    <CalendarDays className="h-4 w-4 shrink-0 text-white/70" />
+                    <span className="truncate">{T.t("tenDay")}</span>
+                  </h2>
+                  <div className="px-4 pb-2">
+                    <div className="divide-y divide-white/12">
+                      {daily.map((d, i) => {
+                        const leftPct = ((d.min - rangeMin) / (rangeMax - rangeMin || 1)) * 100;
+                        const widthPct = ((d.max - d.min) / (rangeMax - rangeMin || 1)) * 100;
+                        const pop = Math.round((d.pop ?? 0) * 100);
+                        const wind = Math.round(d.windMax ?? 0);
                         return (
-                          <div key={h.dt} className="flex min-w-[52px] flex-col items-center gap-2">
-                            <span className="text-xs font-medium text-white/85">
-                              {i === 0 ? T.t("now") : formatHourL(h.dt, tz, lang)}
+                          <div
+                            key={d.dt}
+                            className="grid grid-cols-[3.25rem_1.75rem_minmax(0,1fr)] items-center gap-x-2 py-2"
+                          >
+                            <span className="truncate text-[15px] text-white/90">
+                              {formatDayL(d.dt, tz, lang, i === 0)}
                             </span>
+                            <img
+                              src={
+                                typeof d.code === "number"
+                                  ? weatherImageForWmo(d.code, false)
+                                  : weatherImageFromIcon(d.icon)
+                              }
+                              alt=""
+                              className="h-7 w-7 object-contain"
+                            />
+
                             {mode === "weather" && (
-                              <>
-                                <img src={weatherImageForWmo(h.code, !h.isDay)} alt="" className="h-9 w-9 object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]" />
-                                <span className="text-sm font-medium">{Math.round(h.temp)}°</span>
-                              </>
-                            )}
-                            {mode === "precip" && (
-                              <>
-                                <div className="flex h-9 w-2.5 items-end overflow-hidden rounded-full bg-white/20">
+                              <div className="flex min-w-0 items-center gap-2 text-[15px] tabular-nums">
+                                <span className="w-8 shrink-0 text-right text-white/55">
+                                  {toDisplayTemp(d.min)}
+                                  {tempSuffix}
+                                </span>
+                                <div className="relative h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
                                   <div
-                                    className="w-full rounded-full bg-sky-300"
-                                    style={{ height: `${Math.max(Math.round(h.pop * 100), 3)}%` }}
+                                    className="absolute top-0 h-full rounded-full"
+                                    style={{
+                                      left: `${leftPct}%`,
+                                      width: `${Math.max(widthPct, 6)}%`,
+                                      /* 每日温度条按温度真实值从左(低)到右(高)水平渐变，
+                                       与详细卡片温度曲线的色阶 (temperatureStrokeColor) 完全一致：
+                                       冷蓝 → 青绿 → 黄绿 → 金黄 → 橙 → 红 → 深红。
+                                       在 [d.min, d.max] 区间采样 12 个点生成 stops，保证平滑。 */
+                                      background: (() => {
+                                        const N = 12;
+                                        const parts: string[] = [];
+                                        for (let i = 0; i <= N; i++) {
+                                          const tCelsius = d.min + (i / N) * (d.max - d.min);
+                                          const pct = (i / N) * 100;
+                                          parts.push(
+                                            `${temperatureStrokeColor(tCelsius)} ${pct.toFixed(2)}%`,
+                                          );
+                                        }
+                                        return `linear-gradient(to right, ${parts.join(", ")})`;
+                                      })(),
+                                    }}
+                                  />
+                                  {/* Where we are right now inside today's range. */}
+                                  {i === 0 && (
+                                    <span
+                                      className="absolute top-1/2 h-[7px] w-[7px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.45)]"
+                                      style={{
+                                        left: `${nowPct}%`,
+                                        transform: "translate(-50%,-50%)",
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                                <span className="w-8 shrink-0 text-white">
+                                  {toDisplayTemp(d.max)}
+                                  {tempSuffix}
+                                </span>
+                              </div>
+                            )}
+
+                            {mode === "precip" && (
+                              <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
+                                <div className="h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
+                                  <div
+                                    className="h-full rounded-full bg-sky-300"
+                                    style={{ width: `${pop}%` }}
                                   />
                                 </div>
-                                <span className="text-sm font-medium text-sky-100">
-                                  {Math.round(h.pop * 100)}%
+                                <span className="w-12 shrink-0 text-right text-sky-100">
+                                  {pop}%
                                 </span>
-                              </>
-                            )}
-                            {mode === "wind" && (
-                              <>
-                                <div className="flex h-11 w-9 flex-col items-center justify-center rounded-lg border border-white/15 bg-white/15">
-                                  <span className="text-sm font-semibold leading-none">
-                                    {convertWind(h.wind, unitSettings.wind).value.toFixed(unitSettings.wind === "beaufort" ? 0 : 0)}
+                                {d.precip !== undefined && (
+                                  <span className="w-14 shrink-0 text-right text-xs text-white/60">
+                                    {formatPrecip(d.precip, unitSettings.precipitation)}
                                   </span>
-                                  <span className="mt-0.5 text-[9px] leading-none text-white/70">{windUnit}</span>
-                                </div>
-                                <Navigation
-                                  className="h-3.5 w-3.5 text-white/70"
-                                  style={{ transform: `rotate(${h.windDeg + 180}deg)` }}
-                                />
-                              </>
+                                )}
+                              </div>
                             )}
-                            {isSunset && <span className="text-[10px] text-amber-200">{T.t("sunset")}</span>}
+
+                            {mode === "wind" && (
+                              <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
+                                <Navigation
+                                  className="h-3.5 w-3.5 shrink-0 text-white/80"
+                                  style={{ transform: `rotate(${(d.windDeg ?? 0) + 180}deg)` }}
+                                />
+                                <div className="h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
+                                  <div
+                                    className="h-full rounded-full bg-teal-200"
+                                    style={{ width: `${(wind / windMaxAll) * 100}%` }}
+                                  />
+                                </div>
+                                <span className="flex w-16 shrink-0 items-baseline justify-end gap-1 text-right text-white sm:w-20">
+                                  {convertWind(wind, unitSettings.wind).value.toFixed(0)}
+                                  <span className="text-xs text-white/60">{windUnit}</span>
+                                </span>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-                  </section>
-                </div>
-
-                {/* Daily */}
-                <section className="min-w-0 rounded-3xl border border-white/15 bg-white/10 p-4 backdrop-blur-xl">
-                  <h3 className="mb-2 border-b border-white/15 pb-2 text-xs font-semibold uppercase tracking-widest text-white/60">
-                    {T.t("dayForecast")} · {modes.find((m) => m.key === mode)?.label}
-                  </h3>
-                  <div className="divide-y divide-white/10">
-                    {daily.map((d, i) => {
-                      const leftPct = ((d.min - rangeMin) / (rangeMax - rangeMin || 1)) * 100;
-                      const widthPct = ((d.max - d.min) / (rangeMax - rangeMin || 1)) * 100;
-                      const pop = Math.round((d.pop ?? 0) * 100);
-                      const wind = Math.round(d.windMax ?? 0);
-                      return (
-                        <div key={d.dt} className="grid grid-cols-[52px_32px_1fr] items-center gap-2 py-2.5 sm:grid-cols-[56px_36px_1fr] sm:gap-3">
-                          <span className="truncate text-sm text-white/90">{formatDayL(d.dt, tz, lang, i === 0)}</span>
-                          <img
-                            src={
-                              typeof (d as any).code === "number"
-                                ? weatherImageForWmo((d as any).code, false)
-                                : weatherImageFromIcon(d.icon)
-                            }
-                            alt=""
-                            className="h-8 w-8 object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.15)]"
-                          />
-
-                          {mode === "weather" && (
-                            <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
-                              <span className="w-8 shrink-0 text-right text-white/60">{toDisplayTemp(d.min)}{tempSuffix}</span>
-                              <div className="relative h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
-                                <div
-                                  className="absolute top-0 h-full rounded-full"
-                                  style={{
-                                    left: `${leftPct}%`,
-                                    width: `${Math.max(widthPct, 6)}%`,
-                                    /* 每日温度条按温度真实值从左(低)到右(高)水平渐变，
-                                       与详细卡片温度曲线的色阶 (temperatureStrokeColor) 完全一致：
-                                       冷蓝 → 青绿 → 黄绿 → 金黄 → 橙 → 红 → 深红。
-                                       在 [d.min, d.max] 区间采样 12 个点生成 stops，保证平滑。 */
-                                    background: (() => {
-                                      const N = 12;
-                                      const parts: string[] = [];
-                                      for (let i = 0; i <= N; i++) {
-                                        const tCelsius = d.min + (i / N) * (d.max - d.min);
-                                        const pct = (i / N) * 100;
-                                        parts.push(`${temperatureStrokeColor(tCelsius)} ${pct.toFixed(2)}%`);
-                                      }
-                                      return `linear-gradient(to right, ${parts.join(", ")})`;
-                                    })(),
-                                  }}
-                                />
-                              </div>
-                              <span className="w-8 shrink-0 text-white">{toDisplayTemp(d.max)}{tempSuffix}</span>
-                            </div>
-                          )}
-
-                          {mode === "precip" && (
-                            <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
-                              <div className="h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
-                                <div
-                                  className="h-full rounded-full bg-sky-300"
-                                  style={{ width: `${pop}%` }}
-                                />
-                              </div>
-                              <span className="w-12 shrink-0 text-right text-sky-100">{pop}%</span>
-                              {d.precip !== undefined && (
-                                <span className="w-14 shrink-0 text-right text-xs text-white/60">
-                                  {formatPrecip(d.precip, unitSettings.precipitation)}
-                                </span>
-                              )}
-                            </div>
-                          )}
-
-                          {mode === "wind" && (
-                            <div className="flex min-w-0 items-center gap-2 text-sm tabular-nums">
-                              <Navigation
-                                className="h-3.5 w-3.5 shrink-0 text-white/80"
-                                style={{ transform: `rotate(${(d.windDeg ?? 0) + 180}deg)` }}
-                              />
-                              <div className="h-1.5 min-w-0 flex-1 rounded-full bg-white/20">
-                                <div
-                                  className="h-full rounded-full bg-teal-200"
-                                  style={{ width: `${(wind / windMaxAll) * 100}%` }}
-                                />
-                              </div>
-                              <span className="flex w-16 shrink-0 items-baseline justify-end gap-1 text-right text-white sm:w-20">
-                                {convertWind(wind, unitSettings.wind).value.toFixed(0)}
-                                <span className="text-xs text-white/60">{windUnit}</span>
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
                   </div>
                 </section>
-              </div>
 
-              {/* Detail cards */}
-              <WeatherCards
-                cur={current.data}
-                daily={daily}
-                T={T}
-                lang={lang}
-                tz={tz}
-                units={units}
-                unitSettings={unitSettings}
-                pop={hourly[0]?.pop ?? 0}
-                todayHi={todayHi}
-                pressureTrend={pressureTrend}
-                onOpen={setDetail}
-                air={
-                  air.data
-                    ? {
-                        aqi: air.data.list[0].main.aqi,
-                        pm2_5: air.data.list[0].components.pm2_5,
-                        pm10: air.data.list[0].components.pm10,
-                        o3: air.data.list[0].components.o3,
-                      }
-                    : undefined
-                }
-              />
+                {/* Detail cards */}
+                <WeatherCards
+                  cur={current.data}
+                  daily={daily}
+                  T={T}
+                  lang={lang}
+                  tz={tz}
+                  units={units}
+                  unitSettings={unitSettings}
+                  pop={hourly[0]?.pop ?? 0}
+                  todayHi={todayHi}
+                  pressureTrend={pressureTrend}
+                  onOpen={setDetail}
+                  air={
+                    air.data
+                      ? {
+                          aqi: air.data.list[0].main.aqi,
+                          pm2_5: air.data.list[0].components.pm2_5,
+                          pm10: air.data.list[0].components.pm10,
+                          o3: air.data.list[0].components.o3,
+                        }
+                      : undefined
+                  }
+                />
+              </div>
 
               {detail && (
                 <MetricDetail
                   metric={detail}
                   onClose={() => setDetail(null)}
                   hours={om.data?.hourly ?? hourly}
-                  days={(om.data?.daily ?? daily) as any}
+                  days={om.data?.daily ?? daily}
                   tz={tz}
                   lang={lang}
                   T={T}
@@ -568,7 +673,7 @@ export function WeatherApp() {
                 />
               )}
 
-              <footer className="pt-2 text-center text-xs text-white/60">
+              <footer className="pb-12 pt-2 text-center text-xs text-white/55 lg:pb-2">
                 {T.t("dataFrom")} · {T.t("updated")} {formatTimeL(current.data.dt, tz)}
               </footer>
             </>
@@ -576,20 +681,83 @@ export function WeatherApp() {
         </main>
       </div>
 
+      {/* Floating bar — the two things you actually reach for while reading the
+         forecast, parked where the thumb is. The page dots double as a city
+         switcher, so changing location never costs a navigation.
+
+         Portaled to <body>: `.page-enter` keeps `will-change: transform`, which
+         makes the page element a containing block that would trap
+         `position: fixed` inside its own box. */}
+      {current.data &&
+        locations.length > 0 &&
+        createPortal(
+          <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:hidden">
+            <div className="mx-auto grid w-full max-w-2xl grid-cols-[1fr_auto_1fr] items-center px-4 md:px-6">
+              <span aria-hidden />
+              <div className="sky-bar pointer-events-auto flex items-center gap-1.5 px-3.5 py-2.5">
+                {locations.map((l) => (
+                  <button
+                    key={l.id}
+                    onClick={() => setActiveId(l.id)}
+                    aria-label={l.name}
+                    aria-current={l.id === active.id}
+                    className={`rounded-full transition-all duration-200 ease-out ${
+                      l.id === active.id ? "h-2 w-2 bg-white" : "h-1.5 w-1.5 bg-white/40"
+                    }`}
+                  />
+                ))}
+              </div>
+              <Link
+                to="/cities"
+                className="sky-chip pointer-events-auto inline-flex h-11 w-11 items-center justify-center justify-self-end"
+                aria-label={T.t("cityList")}
+              >
+                <List className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>,
+          document.body,
+        )}
+
       {unitsOpen && <UnitSettingsSheet onClose={() => setUnitsOpen(false)} />}
     </div>
   );
 }
 
+/* "最高 23°" — the label is set vertically so it can stay small while the
+   number stays loud. Splitting on characters keeps it working for 最高/最低
+   and for the single-letter H/L. */
+function StackedStat({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-start gap-1">
+      <span className="flex flex-col pt-[3px] text-[11px] font-normal leading-[1.12] text-white/75">
+        {[...label].map((ch, i) => (
+          <span key={i}>{ch}</span>
+        ))}
+      </span>
+      <span className="text-[22px] leading-none">{value}</span>
+    </span>
+  );
+}
+
 function MenuItem({
-  icon, label, checked, onClick, to,
+  icon,
+  label,
+  checked,
+  onClick,
+  to,
 }: {
-  icon: React.ReactNode; label: string; checked?: boolean;
-  onClick?: () => void; to?: string;
+  icon: React.ReactNode;
+  label: string;
+  checked?: boolean;
+  onClick?: () => void;
+  to?: string;
 }) {
   const inner = (
     <>
-      <span className="flex w-4 justify-center">{checked ? <Check className="h-4 w-4" /> : null}</span>
+      <span className="flex w-4 justify-center">
+        {checked ? <Check className="h-4 w-4" /> : null}
+      </span>
       <span className="flex w-5 justify-center text-white/80">{icon}</span>
       <span className="flex-1">{label}</span>
     </>

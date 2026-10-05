@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 import type { OMDay, OMHour } from "@/lib/openmeteo";
-import type { CurrentWeather } from "@/lib/weather";
+import type { CurrentWeather, DailySummary } from "@/lib/weather";
 import { degToCompass, weatherImage, weatherImageFromIcon } from "@/lib/weather";
 import { weatherImageForWmo } from "@/lib/openmeteo";
 import { formatTimeL, formatHourL, type Lang } from "@/lib/i18n";
@@ -197,6 +197,7 @@ function buildValueGradientStops(
 
 function Chart({
   points,
+  dashedPoints,
   color,
   min,
   max,
@@ -213,6 +214,9 @@ function Chart({
   valueToStrokeColor,
 }: {
   points: { h: number; v: number }[];
+  /** Second series drawn as a dashed curve on the same scale — the temperature
+   *  you are *not* currently reading (实际气温 vs 体感温度). No fill, no split. */
+  dashedPoints?: { h: number; v: number }[];
   color: string;
   min: number;
   max: number;
@@ -337,8 +341,20 @@ function Chart({
     const pastFill = pastD ? `${pastD} L${splitX.toFixed(1)} ${height} L0 ${height} Z` : "";
     const futureFill = futureD ? `${futureD} L${width} ${height} L${(future.length ? x(future[0].h) : 0).toFixed(1)} ${height} Z` : "";
     const pastColor = `color-mix(in oklab, ${color} 72%, black)`;
-    return { pastD, futureD, pastFill, futureFill, pastColor, pastSegs, futureSegs };
-  }, [bars, points, color, effectiveMax, effectiveMin, nowHour]);
+
+    /* 对比曲线：补上 0/24 两端，单调平滑，不切分也不填充。 */
+    const dashedD = (() => {
+      if (!dashedPoints || dashedPoints.length < 2) return "";
+      const dc = [
+        { h: 0, v: dashedPoints[0].v },
+        ...dashedPoints,
+        { h: 24, v: dashedPoints[dashedPoints.length - 1].v },
+      ];
+      return smoothLine(smoothSegments(dc));
+    })();
+
+    return { pastD, futureD, pastFill, futureFill, pastColor, pastSegs, futureSegs, dashedD };
+  }, [bars, points, dashedPoints, color, effectiveMax, effectiveMin, nowHour]);
 
   /* 极值：基于原始 points （不含 0/24 合成端点） */
   const extremes = useMemo(() => {
@@ -723,6 +739,9 @@ function Chart({
                     )}
                   </>
                 )}
+                {staticBits.dashedD && (
+                  <path d={staticBits.dashedD} className="detail-chart-line-compare" />
+                )}
               </>
             )}
           </svg>
@@ -897,7 +916,10 @@ export function MetricDetail({
   metric: MetricKey;
   onClose: () => void;
   hours: OMHour[];
-  days: (OMDay & { dt: number })[];
+  /* Either source satisfies this: Open-Meteo rows (every field present) or the
+     OpenWeather fallback summary, where the Open-Meteo-only fields are simply
+     absent. Keeping them optional here removes the cast at the call site. */
+  days: (DailySummary & Partial<OMDay>)[];
   tz: number;
   lang: Lang;
   T: T;
@@ -955,8 +977,8 @@ export function MetricDetail({
     ? (() => {
         const parts = localParts(day.dt, tz);
         return lang === "zh"
-          ? `${parts.y}年${parts.m}月${parts.day}日 ${T.day(parts.dow)}`
-          : `${T.day(parts.dow)}, ${parts.m}/${parts.day}/${parts.y}`;
+          ? `${parts.y}年${parts.m}月${parts.day}日 ${T.dayLong(parts.dow)}`
+          : `${T.dayLong(parts.dow)}, ${parts.m}/${parts.day}/${parts.y}`;
       })()
     : "";
 
@@ -1000,8 +1022,10 @@ export function MetricDetail({
 
     if (key === "conditions") {
       const getTemp = (hour: OMHour) => tempTab === "actual" ? hour.temp : hour.feels;
+      const getOtherTemp = (hour: OMHour) => tempTab === "actual" ? hour.feels : hour.temp;
       const values = dayHours.map(getTemp);
-      const range = chartRange(values);
+      /* Scale spans both series so the comparison curve can never clip. */
+      const range = chartRange([...values, ...dayHours.map(getOtherTemp)]);
       return (
         <div className="space-y-3">
           <TopValue
@@ -1012,8 +1036,8 @@ export function MetricDetail({
                 src={
                   dayIdx === 0
                     ? weatherImage(cur.weather[0].id, cur.weather[0].icon)
-                    : typeof (day as any).code === "number"
-                      ? weatherImageForWmo((day as any).code, false)
+                    : typeof day.code === "number"
+                      ? weatherImageForWmo(day.code, false)
                       : weatherImageFromIcon(day.icon)
                 }
                 alt=""
@@ -1024,6 +1048,7 @@ export function MetricDetail({
           />
           <Chart
             points={points(getTemp)}
+            dashedPoints={points(getOtherTemp)}
             color="var(--weather-temperature)"
             min={range.min}
             max={range.max}
@@ -1039,6 +1064,27 @@ export function MetricDetail({
           />
           <SegmentedControl value={tempTab} onChange={setTempTab} left={T.t("actualTemp")} right={T.t("apparentTemp")} />
           <p className="text-base text-detail-muted">{tempTab === "actual" ? T.t("actualTempDesc") : T.t("apparentTempDesc")}</p>
+
+          {/* Same day, one scroll further: how likely rain is across it. */}
+          <div className="pt-4">
+            <Section title={T.t("precip")}>
+              <p className="mb-3 text-base text-detail-muted">
+                {T.t("precipChanceToday")}
+                {Math.round((day.pop ?? 0) * 100)}%
+              </p>
+              <Chart
+                points={points((hour) => hour.pop * 100)}
+                color="var(--weather-rain)"
+                min={0}
+                max={100}
+                format={(value) => `${Math.round(value)}%`}
+                nowHour={chartNowHour}
+                bars
+                dayHours={dayHours}
+                formatHour={chartHourLabel}
+              />
+            </Section>
+          </div>
         </div>
       );
     }
@@ -1234,7 +1280,7 @@ export function MetricDetail({
           <Section title={copy("未来日出与日落", "Upcoming Sunrise & Sunset")}>
             <div className="divide-y divide-detail-line">
               {days.slice(0, 5).map((item, index) => (
-                <DataRow key={item.dt} label={index === 0 ? T.t("today") : T.day(localParts(item.dt, tz).dow)} value={`${formatTimeL(item.sunrise, tz)}  —  ${formatTimeL(item.sunset, tz)}`} />
+                <DataRow key={item.dt} label={index === 0 ? T.t("today") : T.day(localParts(item.dt, tz).dow)} value={`${formatTimeL(item.sunrise ?? cur.sys.sunrise, tz)}  —  ${formatTimeL(item.sunset ?? cur.sys.sunset, tz)}`} />
               ))}
             </div>
           </Section>
@@ -1256,7 +1302,7 @@ export function MetricDetail({
           <div className="flex min-w-0 items-center gap-2 text-lg font-semibold [&_svg]:h-5 [&_svg]:w-5">
             {heading.icon}<span className="truncate">{heading.label}</span>
           </div>
-          <button type="button" onClick={onClose} className="absolute right-4 grid h-10 w-10 place-items-center rounded-full bg-detail-control text-detail-foreground transition hover:bg-detail-control-hover" aria-label={T.t("close")}>
+          <button type="button" onClick={onClose} className="absolute left-4 grid h-10 w-10 place-items-center rounded-full bg-detail-control text-detail-foreground transition hover:bg-detail-control-hover" aria-label={T.t("close")}>
             <X className="h-5 w-5" />
           </button>
         </header>
@@ -1270,12 +1316,13 @@ export function MetricDetail({
                   const selected = index === dayIdx;
                   return (
                     <button type="button" key={item.dt} onClick={() => setDayIdx(index)} className="flex min-w-0 flex-col items-center gap-1 py-1">
-                      <span className="truncate text-xs text-detail-muted">{T.day(parts.dow)}</span>
+                      <span className="truncate text-xs text-detail-muted">{T.dayNarrow(parts.dow)}</span>
                       <span className={`grid h-9 w-9 max-w-full place-items-center rounded-full text-sm tabular-nums ${selected ? "bg-detail-selected font-semibold text-detail-selected-foreground" : "text-detail-foreground"}`}>{parts.day}</span>
                     </button>
                   );
                 })}
               </div>
+              <p className="mt-1.5 text-center text-lg">{dateLabel}</p>
             </div>
           )}
 

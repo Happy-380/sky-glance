@@ -58,7 +58,7 @@ export function CityListPanel({
         {embedded ? (
           <button
             onClick={onClose}
-            className="shrink-0 rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl"
+            className="sky-chip inline-flex h-11 w-11 shrink-0 items-center justify-center"
             aria-label={T.t("back")}
           >
             <X className="h-4 w-4" />
@@ -66,7 +66,7 @@ export function CityListPanel({
         ) : (
           <Link
             to="/"
-            className="shrink-0 rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl"
+            className="sky-chip inline-flex h-11 w-11 shrink-0 items-center justify-center"
             aria-label={T.t("back")}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -78,7 +78,7 @@ export function CityListPanel({
         <div className="relative">
           <button
             onClick={() => setMenuOpen((v) => !v)}
-            className="rounded-full border border-white/15 bg-white/10 p-2.5 backdrop-blur-xl"
+            className="sky-chip inline-flex h-11 w-11 items-center justify-center"
             aria-label="Menu"
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -120,7 +120,7 @@ export function CityListPanel({
           className="w-full rounded-full border border-white/15 bg-white/10 py-3 pl-11 pr-4 text-sm text-white placeholder:text-white/60 backdrop-blur-xl outline-none focus:border-white/30"
         />
         {query.trim().length >= 2 && (
-          <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-2xl border border-white/15 bg-black/70 backdrop-blur-xl shadow-2xl">
+          <div className="sky-card absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden">
             {search.isFetching && (
               <div className="flex items-center gap-2 px-4 py-3 text-sm text-white/70">
                 <Loader2 className="h-4 w-4 animate-spin" /> {T.t("searching")}
@@ -146,13 +146,13 @@ export function CityListPanel({
         )}
       </div>
 
-      <div className={`flex flex-col gap-3 ${embedded ? "min-h-0 flex-1 overflow-y-auto pr-0.5" : ""}`}>
+      <div className={`flex flex-col gap-3 ${embedded ? "scrollbar-none min-h-0 flex-1 overflow-y-auto pr-0.5" : ""}`}>
         {locations.length === 0 && (
-          <p className="rounded-3xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+          <p className="sky-card p-4 text-sm text-white/70">
             {T.t("noSaved")}
           </p>
         )}
-        {locations.map((loc) => (
+        {locations.map((loc, i) => (
           <CityCard
             key={loc.id}
             loc={loc}
@@ -160,6 +160,7 @@ export function CityListPanel({
             owmLang={owmLang}
             editing={editing}
             compact={embedded}
+            isMyLocation={i === 0}
             T={T}
             onOpen={() => { setActiveId(loc.id); goHome(); }}
             onRemove={() => removeLocation(loc.id)}
@@ -195,12 +196,13 @@ function MenuRow({ label, mark, checked, onClick }: {
   );
 }
 
-function CityCard({ loc, units, owmLang, editing, compact, T, onOpen, onRemove }: {
+function CityCard({ loc, units, owmLang, editing, compact, isMyLocation, T, onOpen, onRemove }: {
   loc: SavedLocation;
   units: "metric" | "imperial";
   owmLang: string;
   editing: boolean;
   compact?: boolean;
+  isMyLocation?: boolean;
   T: ReturnType<typeof makeT>;
   onOpen: () => void;
   onRemove: () => void;
@@ -224,15 +226,15 @@ function CityCard({ loc, units, owmLang, editing, compact, T, onOpen, onRemove }
       )}
       <button
         onClick={onOpen}
-        className={`relative min-w-0 flex-1 overflow-hidden rounded-3xl border border-white/15 bg-white/10 text-left backdrop-blur-xl transition hover:bg-white/15 ${
+        className={`sky-card relative min-w-0 flex-1 overflow-hidden text-left transition duration-200 ease-out hover:bg-white/15 active:scale-[0.99] ${
           compact ? "p-3" : "p-4"
         }`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className={`truncate font-semibold ${compact ? "text-lg" : "text-xl"}`}>{loc.name}</div>
-            <div className="text-xs text-white/70">
-              {d ? formatTimeL(d.dt, d.timezone) : "—"}
+            <div className="truncate text-xs text-white/70">
+              {isMyLocation ? T.t("myLocation") : d ? formatTimeL(d.dt, d.timezone) : "—"}
             </div>
           </div>
           <div className="flex items-center gap-1">

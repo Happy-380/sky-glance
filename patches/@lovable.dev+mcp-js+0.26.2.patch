@@ -1,0 +1,15 @@
+diff --git a/node_modules/@lovable.dev/mcp-js/dist/stacks/tanstack/vite.js b/node_modules/@lovable.dev/mcp-js/dist/stacks/tanstack/vite.js
+index 04c8e8d..d03dd7c 100644
+--- a/node_modules/@lovable.dev/mcp-js/dist/stacks/tanstack/vite.js
++++ b/node_modules/@lovable.dev/mcp-js/dist/stacks/tanstack/vite.js
+@@ -11,7 +11,9 @@ function normalizePath(p) {
+ 	return p.split(sep).join("/");
+ }
+ function assertContains(parent, child, label) {
+-	if (child !== parent && !child.startsWith(parent + sep)) throw new Error(`@lovable.dev/mcp-js: ${label} must resolve under ${parent}, got ${child}`);
++	const _p = normalizePath(parent);
++	const _c = normalizePath(child);
++	if (_c !== _p && !_c.startsWith(_p + "/")) throw new Error(`@lovable.dev/mcp-js: ${label} must resolve under ${parent}, got ${child}`);
+ }
+ function wellKnownRouteFile(routesDir, urlPath) {
+ 	const segments = urlPath.replace(/^\//, "").split("/");

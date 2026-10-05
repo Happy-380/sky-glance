@@ -9,7 +9,7 @@ export function detectLang(): Lang {
 type Dict = Record<string, { zh: string; en: string }>;
 
 const D: Dict = {
-  searchPlaceholder: { zh: "搜索城市…", en: "Search for a city…" },
+  searchPlaceholder: { zh: "搜索城市或机场", en: "Search for a city or airport" },
   searching: { zh: "搜索中…", en: "Searching…" },
   noResults: { zh: "未找到城市。", en: "No cities found." },
   savedLocations: { zh: "我的位置", en: "Saved Locations" },
@@ -67,6 +67,11 @@ const D: Dict = {
   modePrecip: { zh: "降水", en: "Precipitation" },
   modeWind: { zh: "风", en: "Wind" },
   conditions: { zh: "天气状况", en: "Conditions" },
+  feelsLikeInline: { zh: "体感温度：", en: "Feels like: " },
+  tempSub: { zh: "气温", en: "Temperature" },
+  precipSub: { zh: "强度 · 降雨概率", en: "Intensity · Chance" },
+  windSubSpeed: { zh: "风速", en: "Speed" },
+  tenDay: { zh: "10 日天气预报", en: "10-Day Forecast" },
   pressLow: { zh: "低", en: "Low" },
   pressHigh: { zh: "高", en: "High" },
   uvIndex: { zh: "紫外线指数", en: "UV Index" },
@@ -147,12 +152,26 @@ const DAYS: Record<Lang, string[]> = {
   en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
 };
 
+/* Single character, for the narrow day strip in the detail sheet. */
+const DAYS_NARROW: Record<Lang, string[]> = {
+  zh: ["日", "一", "二", "三", "四", "五", "六"],
+  en: ["S", "M", "T", "W", "T", "F", "S"],
+};
+
+/* Spelled out, for the "2026年10月5日 星期一" line. */
+const DAYS_LONG: Record<Lang, string[]> = {
+  zh: ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"],
+  en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+};
+
 export function makeT(lang: Lang) {
   return {
     t: (k: keyof typeof D) => D[k][lang],
     aqi: (n: number) => AQI[n]?.[lang] ?? "—",
     compass: (dir: string) => COMPASS[dir]?.[lang] ?? dir,
     day: (i: number) => DAYS[lang][i],
+    dayNarrow: (i: number) => DAYS_NARROW[lang][i],
+    dayLong: (i: number) => DAYS_LONG[lang][i],
     lang,
   };
 }

@@ -140,11 +140,19 @@ function UnitDropdown<T extends string>({
 }
 
 export function UnitSettingsSheet({ onClose }: { onClose: () => void }) {
-  const lang = useMemo(() => detectLang(), []);
+  const lang = useMemo(() => detectLang(), [""]);
   const T = useMemo(() => makeT(lang), [lang]);
   const settings = useUnitSettings();
   const [local, setLocal] = useState<UnitSettings>(settings);
   const [saved, setSaved] = useState(false);
+  /* createPortal needs a real DOM node, which the server render does not have.
+     Without this guard the whole /units page throws "document is not defined"
+     during SSR and React silently drops the server HTML for client rendering. */
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     setLocal(settings);
@@ -184,6 +192,8 @@ export function UnitSettingsSheet({ onClose }: { onClose: () => void }) {
   /* Render at document.body level: page containers run the .page-enter
      transform animation, and a transformed ancestor becomes the containing
      block for fixed children — which would misplace this overlay. */
+  if (!mounted) return null;
+
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-5">
       <button

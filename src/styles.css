@@ -215,6 +215,115 @@
   scrollbar-color: var(--detail-control-hover) transparent;
 }
 
+/* ---------------------------------------------------------------------------
+   Sky surfaces
+
+   These live in the `components` layer on purpose: Tailwind utilities sit in a
+   later layer and must be able to override them (`hidden`, `hover:bg-white/15`,
+   ...). Unlayered rules would silently win every fight. One definition per
+   surface type also means radius / hairline / blur can never drift between
+   cards - misaligned surfaces are the first thing the eye catches.
+   --------------------------------------------------------------------------- */
+@layer components {
+  .sky-card {
+    border-radius: 1.375rem;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+  }
+
+  /* No `display` here - sizing/display stays with the caller so `hidden` and
+     responsive variants keep working. */
+  .sky-chip {
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    /* Feedback lands on press, not on release. */
+    transition:
+      transform 160ms var(--ease-out),
+      background-color 160ms var(--ease-out);
+  }
+
+  .sky-chip:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .sky-chip:active {
+    transform: scale(0.96);
+  }
+
+  /* Frosted bar that floats over scrolling content. */
+  .sky-bar {
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(10, 14, 22, 0.35);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+  }
+
+  /* Horizontal scrollers (hourly forecast) - iOS shows no track, and a native
+     scrollbar inside a rounded card is the one thing that reads as "web page". */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
+/* Display type over a moving sky needs a hair of shadow to hold its edge. */
+/* Dashed comparison curve in the temperature chart: the series you are not
+   currently reading. Heavier and warmer than the past/future hairline dashes so
+   the two meanings never get confused. */
+.detail-chart-line-compare {
+  fill: none;
+  stroke: var(--weather-temperature);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 5 5;
+  opacity: 0.85;
+}
+
+.sky-hero-shadow {
+  text-shadow: 0 1px 16px rgba(0, 0, 0, 0.22);
+}
+
+/* Accessibility mirrors of the materials above. */
+@media (prefers-reduced-transparency: reduce) {
+  .sky-card,
+  .sky-chip {
+    background: rgba(26, 32, 44, 0.94);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .sky-bar {
+    background: rgba(12, 16, 24, 0.94);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .sky-card,
+  .sky-chip,
+  .sky-bar {
+    background: rgba(16, 20, 28, 0.96);
+    border-color: rgba(255, 255, 255, 0.6);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 @media (max-width: 420px) {
   .detail-chart-grid {
     grid-template-columns: minmax(0, 1fr) max-content;
